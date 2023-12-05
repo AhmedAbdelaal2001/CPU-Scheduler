@@ -16,6 +16,11 @@ struct msgbuff
     struct process p;
 };
 
+typedef struct {
+    struct process* processArray[MAX_PROCESSES];
+    int size;
+} PriorityQueue;
+
 // Process Constructor
 struct process create_process(int id, int arrival, int runtime, int priority)
 {
@@ -25,4 +30,11 @@ struct process create_process(int id, int arrival, int runtime, int priority)
     p.runtime = runtime;
     p.priority = priority;
     return p;
+}
+
+void setProcessInformation(struct process* newProcess, int id, int arrival, int runtime, int priority) {
+    newProcess->id = id;
+    newProcess->arrival = arrival;
+    newProcess->runtime = runtime;
+    newProcess->priority = priority;
 }
