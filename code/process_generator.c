@@ -1,34 +1,7 @@
 #include "headers.h"
+#include "definitions.h"
 
 void clearResources(int);
-
-// Define a constant for the maximum number of processes
-#define MAX_PROCESSES 100
-
-struct process
-{
-    int id;
-    int arrival;
-    int runtime;
-    int priority;
-};
-
-// common structs
-struct msgbuff
-{
-    long mtype;
-    struct process p;
-};
-
-struct process create_process(int id, int arrival, int runtime, int priority)
-{
-    struct process p;
-    p.id = id;
-    p.arrival = arrival;
-    p.runtime = runtime;
-    p.priority = priority;
-    return p;
-}
 
 void down(int sem, int amount)
 {
