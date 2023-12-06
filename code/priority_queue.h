@@ -1,6 +1,7 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "definitions.h"
+#include "headers.h"
 
 void printHeapContents(PriorityQueue* pq){
     for (int i = 0; i<pq->size; i++) printf("Process %d has priority %d\n", pq->processArray[i]->id, pq->processArray[i]->priority);
@@ -14,6 +15,7 @@ void swap(struct process** processArray, int i, int j) {
 
 void initializePriorityQueue(PriorityQueue* pq) { pq->size = 0; }
 struct process* heapMinimum(PriorityQueue* pq) { return pq->processArray[0]; }
+bool isEmpty(PriorityQueue* pq) { return pq->size == 0; }
 
 int parent(int i) { return (i - 1) / 2; }
 int left(int i) { return 2 * i + 1; }

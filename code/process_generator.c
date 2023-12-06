@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
     // create message queue between process_generator and scheduler
     key_t msgq_key = ftok("keys/gen_sch_msg_key", 'M');
     int msgq_id = msgget(msgq_key, IPC_CREAT | 0644);
+    struct msgbuff message;
 
     for (int i = 0; i < num_processes; i++)
     {
@@ -133,7 +134,6 @@ int main(int argc, char *argv[])
         down(sem_id, processes[i].arrival - getClk());
 
         // send the process to the scheduler
-        struct msgbuff message;
         message.mtype = 1;
         message.p = processes[i];
         if (msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT) == -1)
@@ -141,18 +141,23 @@ int main(int argc, char *argv[])
             perror("Error in sending message");
             exit(-1);
         }
-
+        //msgrcv(msgq_id, &message, sizeof(message.p), 0, IPC_NOWAIT); 
         // print the process info
-        printf("Process %d sent to scheduler at time %d\n", processes[i].id, getClk());
+        //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
     }
 
-    // 7. Clear clock resources
-    destroyClk(true);
+    // Send the termination message
+    message.mtype = TERMINATION_MSG_TYPE; // Assuming TERMINATION_MSG_TYPE is defined
+    msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT);
+    
 
     // Wait for the scheduler process to finish
     int status;
     waitpid(scheduler_pid, &status, 0);
 
+    // 7. Clear clock resources
+    destroyClk(true);
+    
     return 0;
 }
 
