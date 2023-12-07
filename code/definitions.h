@@ -1,6 +1,9 @@
 // Define a constant for the maximum number of processes
 #define MAX_PROCESSES 100
 
+// A special message type to indicate that all processes have been sent
+#define TERMINATION_MSG_TYPE 999 
+
 // common structs
 struct process
 {
@@ -8,6 +11,8 @@ struct process
     int arrival;
     int runtime;
     int priority;
+
+    int remainingTime;
 };
 
 struct msgbuff
@@ -29,6 +34,8 @@ struct process create_process(int id, int arrival, int runtime, int priority)
     p.arrival = arrival;
     p.runtime = runtime;
     p.priority = priority;
+
+    p.remainingTime = runtime;
     return p;
 }
 
@@ -37,4 +44,6 @@ void setProcessInformation(struct process* newProcess, int id, int arrival, int 
     newProcess->arrival = arrival;
     newProcess->runtime = runtime;
     newProcess->priority = priority;
+
+    newProcess->remainingTime = runtime;
 }
