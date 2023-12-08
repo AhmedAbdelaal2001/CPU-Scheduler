@@ -7,7 +7,7 @@
 
 #include "headers.h"
 
-int shmid;
+int shmid, sem_id;
 
 // our stuff
 union Semun
@@ -37,6 +37,10 @@ void up(int sem)
 void cleanup(int signum)
 {
     shmctl(shmid, IPC_RMID, NULL);
+    if (semctl(sem_id, 0, IPC_RMID) == -1)
+    {
+        perror("Error removing semaphore");
+    }
     printf("Clock terminating!\n");
     exit(0);
 }
@@ -46,7 +50,7 @@ int main(int argc, char *argv[])
 {
     // create a semaphore for the process_generator
     key_t sem_key = ftok("keys/clk_gen_sem_key", 'S');
-    int sem_id = semget(sem_key, 1, IPC_CREAT | 0644);
+    sem_id = semget(sem_key, 1, IPC_CREAT | 0644);
 
     if (sem_id == -1)
     {

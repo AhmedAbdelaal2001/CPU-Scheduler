@@ -1,5 +1,6 @@
 #include "headers.h"
-#include "definitions.h"
+
+int msgq_id;
 
 void clearResources(int);
 
@@ -122,7 +123,7 @@ int main(int argc, char *argv[])
 
     // create message queue between process_generator and scheduler
     key_t msgq_key = ftok("keys/gen_sch_msg_key", 'M');
-    int msgq_id = msgget(msgq_key, IPC_CREAT | 0644);
+    msgq_id = msgget(msgq_key, IPC_CREAT | 0644);
     struct msgbuff message;
 
     for (int i = 0; i < num_processes; i++)
@@ -131,25 +132,36 @@ int main(int argc, char *argv[])
         // if (i > 0) down(sem_id, processes[i].arrival - processes[i - 1].arrival);
         // else down(sem_id, processes[i].arrival);
         // printf("Process %d will arrive in %d\n", processes[i].id, processes[i].arrival - getClk());
-        down(sem_id, processes[i].arrival - getClk());
-
-        // send the process to the scheduler
-        message.mtype = 1;
-        message.p = processes[i];
-        if (msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT) == -1)
+        while (getClk() < processes[i].arrival)
         {
-            perror("Error in sending message");
-            exit(-1);
         }
-        //msgrcv(msgq_id, &message, sizeof(message.p), 0, IPC_NOWAIT); 
-        // print the process info
-        //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+
+        int currTime = getClk();
+        while (currTime == processes[i].arrival)
+        {
+            // send the process to the scheduler
+            message.mtype = 1;
+            message.p = processes[i];
+            if (msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT) == -1)
+            {
+                perror("Error in sending message");
+                exit(-1);
+            }
+            // msgrcv(msgq_id, &message, sizeof(message.p), 0, IPC_NOWAIT);
+            // print the process info
+            printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            i++;
+        }
+        i--;
+
+        // send SIGUSR1 to the scheduler to inform it that a new process has arrived
+        kill(scheduler_pid, SIGUSR1);
     }
 
     // Send the termination message
+    printf("GEN: Sending termination message\n");
     message.mtype = TERMINATION_MSG_TYPE; // Assuming TERMINATION_MSG_TYPE is defined
     msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT);
-    
 
     // Wait for the scheduler process to finish
     int status;
@@ -157,7 +169,7 @@ int main(int argc, char *argv[])
 
     // 7. Clear clock resources
     destroyClk(true);
-    
+
     return 0;
 }
 
@@ -166,5 +178,10 @@ void clearResources(int signum)
     // Clear IPC resources
     // Terminate child processes
     // Handle other cleanup tasks
+    // remove the message queue
+    if (msgctl(msgq_id, IPC_RMID, NULL) == -1)
+    {
+        perror("Error removing message queue");
+    }
     exit(signum);
 }
