@@ -18,8 +18,6 @@ void receiveProcesses(int msgq_id, struct msgbuff *message, PriorityQueue *prior
 {
     while (msgrcv(msgq_id, message, sizeof(message->p), 0, IPC_NOWAIT) != -1)
         receiveProcess(*message, priorityQueue, allProcessesSentFlag);
-
-    doneSending = false;
 }
 
 void HPF()
@@ -27,6 +25,8 @@ void HPF()
     // Initialize message queue
     printf("HPF: Starting Algorthim...\n");
     int msgq_id = prepareMessageQueue();
+    int gen_sch_sem_id = prepareSemaphore("keys/gen_sch_sem_key");
+
     struct msgbuff message;
 
     // Initialize priority queue
@@ -42,11 +42,13 @@ void HPF()
     while (!isEmpty(priorityQueue) || !allProcessesSentFlag || processRunningFlag)
     {
         // printf("HPF: Looping...\n");
+        if (!allProcessesSentFlag) down(gen_sch_sem_id);
+
         // Check for process completion
         checkForProcessCompletion(&processRunningFlag, &child_pid);
 
         // Receive a process from the message queue
-        if (!allProcessesSentFlag && doneSending)
+        if (!allProcessesSentFlag)
             receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
 
         // Check if the CPU is idle and there is a process to run
@@ -70,6 +72,7 @@ void HPF()
                         nextProcess->remainingTime--;
                     }
                 }
+                free(nextProcess);
                 exit(0);
             }
             else if (child_pid > 0)

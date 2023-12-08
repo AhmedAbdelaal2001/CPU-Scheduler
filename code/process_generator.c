@@ -1,29 +1,11 @@
 #include "headers.h"
 
 int msgq_id;
+int gen_sch_sem_id;
 
 void clearResources(int);
 
-void down(int sem, int amount)
-{
-    struct sembuf op;
-
-    op.sem_num = 0;
-    op.sem_op = -amount;
-    op.sem_flg = !IPC_NOWAIT;
-
-    if (semop(sem, &op, 1) == -1)
-    {
-        perror("Error in down()");
-        exit(-1);
-    }
-}
-
-int main(int argc, char *argv[])
-{
-    signal(SIGINT, clearResources);
-    // TODO Initialization
-    // 1. Read the input files.
+int readInputFile(char* filename, struct process* processes) {
     FILE *file = fopen("processes.txt", "r");
     if (file == NULL)
     {
@@ -32,7 +14,6 @@ int main(int argc, char *argv[])
     }
 
     char line[256];
-    struct process processes[MAX_PROCESSES];
     int num_processes = 0;
 
     while (fgets(line, sizeof(line), file))
@@ -49,41 +30,27 @@ int main(int argc, char *argv[])
         }
     }
     fclose(file);
+    return num_processes;
+}
 
-    // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
-    int scheduling_algo;
+void getSchedulingParameters(int* scheduling_algo, int* quantum) {
+
     printf("Choose scheduling algorithm: \n");
     printf("1. Non-preemptive Highest Priority First (HPF)\n");
     printf("2. Shortest Remaining time Next (SRTN)\n");
     printf("3. Round Robin (RR)\n");
     printf("Enter your choice: ");
-    scanf("%d", &scheduling_algo);
+    scanf("%d", scheduling_algo);
 
     // Additional parameters for certain algorithms, like time quantum for RR
-    int quantum = 0;
-    if (scheduling_algo == 3)
+    if (*scheduling_algo == 3)
     { // Assuming 3 corresponds to RR
         printf("Enter time quantum: ");
-        scanf("%d", &quantum);
+        scanf("%d", quantum);
     }
+}
 
-    // 3. Initiate and create the scheduler and clock processes.
-    pid_t pid = fork();
-    if (pid == -1)
-    {
-        // Fork failed
-        perror("Error forking clock process");
-        exit(EXIT_FAILURE);
-    }
-    else if (pid == 0)
-    {
-        // Child process: execute the clock program
-        execl("./clk.out", "clock.out", (char *)NULL);
-        // If execl returns, it has failed
-        perror("Error executing clock program");
-        exit(EXIT_FAILURE);
-    }
-
+pid_t createSchedulerProcess(int scheduling_algo, int quantum) {
     // Parent process: continue creating the scheduler process
     pid_t scheduler_pid = fork();
     if (scheduler_pid == -1)
@@ -106,37 +73,43 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // 4. Use this function after creating the clock process to initialize clock
-    // sleep(3);
-    initClk();
+    return scheduler_pid;
+}
 
-    // Generation Main Loop
-    // 5. Create a data structure for processes and provide it with its parameters.
-    // 6. Send the information to the scheduler at the appropriate time.
-    // (Assuming you have a message queue or other IPC mechanism set up for this)
-
-    printf("Entering main loop\n");
-
-    // get the semaphore
-    key_t sem_key = ftok("keys/clk_gen_sem_key", 'S');
-    int sem_id = semget(sem_key, 1, IPC_CREAT | 0644);
-
-    // create message queue between process_generator and scheduler
-    key_t msgq_key = ftok("keys/gen_sch_msg_key", 'M');
-    msgq_id = msgget(msgq_key, IPC_CREAT | 0644);
-    struct msgbuff message;
-
-    for (int i = 0; i < num_processes; i++)
+void createClockProcess() {
+    pid_t clk_pid = fork();
+    if (clk_pid == -1)
     {
-        // down the semaphore with the difference between the arrival time of the current process and the arrival time of the previous process
-        // if (i > 0) down(sem_id, processes[i].arrival - processes[i - 1].arrival);
-        // else down(sem_id, processes[i].arrival);
-        // printf("Process %d will arrive in %d\n", processes[i].id, processes[i].arrival - getClk());
-        while (getClk() < processes[i].arrival)
-        {
+        // Fork failed
+        perror("Error forking clock process");
+        exit(EXIT_FAILURE);
+    }
+    else if (clk_pid == 0)
+    {
+        // Child process: execute the clock program
+        execl("./clk.out", "clock.out", (char *)NULL);
+        // If execl returns, it has failed
+        perror("Error executing clock program");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void sendProcessesToScheduler(int num_processes, struct process* processes, int scheduler_pid) {
+    struct msgbuff message;
+    for (int i = 0; i < num_processes; i++)
+
+    {
+        int currTime = getClk();
+        int nextArrivalTime = processes[i].arrival;
+
+        while (currTime < nextArrivalTime) {
+            if (currTime != getClk()) {
+                currTime = getClk();
+                if (currTime != nextArrivalTime)
+                    up(gen_sch_sem_id);
+            }
         }
 
-        int currTime = getClk();
         while (currTime == processes[i].arrival)
         {
             // send the process to the scheduler
@@ -147,21 +120,49 @@ int main(int argc, char *argv[])
                 perror("Error in sending message");
                 exit(-1);
             }
-            // msgrcv(msgq_id, &message, sizeof(message.p), 0, IPC_NOWAIT);
-            // print the process info
-            printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
         }
+        //printf("Sent Processes\n");
+        up(gen_sch_sem_id);
         i--;
-
-        // send SIGUSR1 to the scheduler to inform it that a new process has arrived
-        kill(scheduler_pid, SIGUSR1);
     }
 
     // Send the termination message
-    printf("GEN: Sending termination message\n");
     message.mtype = TERMINATION_MSG_TYPE; // Assuming TERMINATION_MSG_TYPE is defined
     msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT);
+}
+
+int main(int argc, char *argv[])
+{
+    gen_sch_sem_id = prepareSemaphore("keys/gen_sch_sem_key");
+    
+    // 1. Read the Input data from the file.
+    struct process processes[MAX_PROCESSES];
+    int num_processes = readInputFile("processes.txt", processes);
+
+    // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
+    int scheduling_algo = 0;
+    int quantum = 0;
+    getSchedulingParameters(&scheduling_algo, &quantum);
+
+    // 3. Initiate and create the scheduler and clock processes.
+    pid_t scheduler_pid = createSchedulerProcess(scheduling_algo, quantum);
+    createClockProcess();
+
+    // 4. Use this function after creating the clock process to initialize clock
+    initClk();
+
+    // Generation Main Loop
+    // 5. Create a data structure for processes and provide it with its parameters.
+    // 6. Send the information to the scheduler at the appropriate time.
+    // (Assuming you have a message queue or other IPC mechanism set up for this)
+
+    printf("Entering main loop\n");
+
+    // create message queue between process_generator and scheduler
+    msgq_id = prepareMessageQueue();
+    sendProcessesToScheduler(num_processes, processes, scheduler_pid);
 
     // Wait for the scheduler process to finish
     int status;
@@ -180,6 +181,11 @@ void clearResources(int signum)
     // Handle other cleanup tasks
     // remove the message queue
     if (msgctl(msgq_id, IPC_RMID, NULL) == -1)
+    {
+        perror("Error removing message queue");
+    }
+
+    if (semctl(gen_sch_sem_id, 0, IPC_RMID, NULL) == -1)
     {
         perror("Error removing message queue");
     }

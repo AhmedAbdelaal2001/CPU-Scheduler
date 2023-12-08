@@ -34,8 +34,8 @@ void RR()
         printf("AHOO1: %d\n", !isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag);
 
         // Receive a process from the message queue
-        if (!allProcessesSentFlag && doneSending)
-            receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
+        // if (!allProcessesSentFlag)
+            //receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
 
         printf("AHOO2: %d\n", !isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag);
 
