@@ -1,18 +1,39 @@
 #include "priority_queue.h"
 
-void checkForProcessCompletion(struct process** runningProcess, pid_t *child_pid)
+void checkForProcessCompletion(struct process** runningProcess)
 {
     int status;
     // Check for process completion
     if (*runningProcess)
     {
-        if (waitpid(*child_pid, &status, WNOHANG) > 0)
+        if (waitpid((*runningProcess)->pid, &status, WNOHANG) > 0)
         {
             // Child process finished
             *runningProcess = NULL;
-            *child_pid = -1;
         }
     }
+}
+
+bool checkForPreemption(PriorityQueue *priorityQueue, struct process** runningProcess) {
+    if (*runningProcess && !isEmpty(priorityQueue)) {
+        struct process* minProcess = heapMinimum(priorityQueue);
+        if (minProcess->remainingTime < (*runningProcess)->remainingTime) {
+            (*runningProcess)->priority = (*runningProcess)->remainingTime;
+            minHeapInsert(priorityQueue, *runningProcess);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+struct process* handlePreemption(struct process* runningProcess) {
+    // This function should stop the currently running process, then return NULL.
+
+    //TODO: Preemption Logic...
+
+    //Return NULL
+    return NULL;
 }
 
 void receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
@@ -23,9 +44,12 @@ void receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *
     {
         // Create a process pointer
         struct process *newProcess = (struct process *)malloc(sizeof(struct process));
-        setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority);
         
-        // Insert the process into the priority queue
+        // The process's priority, which is the last input to the function, is set as the runtime; since we are using SRTN.
+        setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.runtime);
+        
+        // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
+        // the priority queue will automatically handle the ordering of the values with respect to the running time.
         minHeapInsert(priorityQueue, newProcess);
     }
 }
@@ -52,10 +76,10 @@ void childProcessCode(struct process* runningProcess, int sch_child_sem_id) {
     exit(0);
 }
 
-void HPF()
+void SRTN()
 {
     // Initialize message queue
-    printf("HPF: Starting Algorthim...\n");
+    printf("SRTN: Starting Algorthim...\n");
     int msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
     int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
     int sch_child_sem_id = prepareSemaphore("keys/sch_child_sem_key", 0);
@@ -67,6 +91,7 @@ void HPF()
     initializePriorityQueue(priorityQueue);
 
     bool allProcessesSentFlag = false;
+    bool preemptionFlag = false;
     struct process* runningProcess = NULL;
 
     int status;
@@ -82,15 +107,24 @@ void HPF()
         }
 
         // Check for process completion
-        checkForProcessCompletion(&runningProcess, &child_pid);
+        checkForProcessCompletion(&runningProcess);
 
+        // Check for any preemptions
+        if (checkForPreemption(priorityQueue, &runningProcess))
+            runningProcess = handlePreemption(runningProcess);
+        
         // Check if the CPU is idle and there is a process to run
-        if (!runningProcess && !isEmpty(priorityQueue))
+        if ((!runningProcess && !isEmpty(priorityQueue)))
         {
             runningProcess = heapExtractMin(priorityQueue);
-            child_pid = fork();
-            if (child_pid == -1) perror("Fork Falied");
-            else if (child_pid == 0) childProcessCode(runningProcess, sch_child_sem_id);
+            if (runningProcess->pid == -1) {
+                runningProcess->pid = fork();
+                if (runningProcess->pid == -1) perror("Fork Falied");
+                else if (runningProcess->pid == 0) childProcessCode(runningProcess, sch_child_sem_id);
+            } else {
+                // TODO:
+                //runningProcess was previously stopped, continue it from where it left.
+            }
         }
 
         if (runningProcess)
