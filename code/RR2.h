@@ -53,6 +53,7 @@ void RR()
         // printf("time before reading from message queue: %d\n", getClk());
         if (!allProcessesSentFlag)
         {
+            // pausing to check if there is a process to receive from scheduler
             down(gen_sch_sem_id);
             // printf("Downed gen_sch_sem_id\n");
             addProcessesToArray(msgq_id, &message, processes, &allProcessesSentFlag);
@@ -66,7 +67,9 @@ void RR()
         if (!isArrEmpty(processes) && !processRunningFlag)
         {
             // printf("RR: Trying to run process %d\n", processToRun);
+            printf("what it do baby boo? It do be %d ", processToRun);
             struct process *nextProcess = processes->data[processToRun];
+            printf("Pid who? %d", nextProcess->pid);
             // printf("process pid before fork: %d\n", nextProcess->pid);
             if (nextProcess->pid == -1)
                 nextProcess->pid = fork();
