@@ -102,7 +102,6 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
 {
     struct msgbuff message;
     for (int i = 0; i < num_processes; i++)
-
     {
         int currTime = getClk();
         int nextArrivalTime = processes[i].arrival;
@@ -110,13 +109,10 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
         while (getClk() < nextArrivalTime)
         {
 
-            if (currTime != nextArrivalTime)
-                up(gen_sch_sem_id);
+            if (currTime != nextArrivalTime) up(gen_sch_sem_id);
 
             currTime = getClk();
-            while (currTime == getClk())
-            {
-            }
+            while (currTime == getClk()) {}
         }
 
         while (currTime == processes[i].arrival)
@@ -129,12 +125,12 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
                 perror("Error in sending message");
                 exit(-1);
             }
-            printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
         }
-        printf("Sent Processes\n");
+        //printf("Sent Processes\n");
         up(gen_sch_sem_id);
-        printf("Upping gen_sch_sem_id\n");
+        //printf("Upping gen_sch_sem_id\n");
         i--;
     }
 
@@ -151,7 +147,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("tests/easy.txt", processes);
+    int num_processes = readInputFile("processes.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;

@@ -118,21 +118,6 @@ int getSemaphore(char *filePath)
     return sem_id;
 }
 
-void checkForProcessCompletion(bool *processRunningFlag, pid_t *child_pid)
-{
-    int status;
-    // Check for process completion
-    if (*processRunningFlag && *child_pid > 0)
-    {
-        if (waitpid(*child_pid, &status, WNOHANG) > 0)
-        {
-            // Child process finished
-            *processRunningFlag = false;
-            *child_pid = -1;
-        }
-    }
-}
-
 void down(int sem)
 {
     struct sembuf op;
