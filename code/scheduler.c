@@ -1,5 +1,7 @@
 // #include "highest_priority_first.h"
 #include "shortest_remaining_time_next.h"
+#include "highest_priority_first.h"
+#include "RR2.h"
 
 int main(int argc, char *argv[])
 {
