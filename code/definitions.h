@@ -75,7 +75,7 @@ int prepareMessageQueue()
 {
 
     key_t key_id = ftok("keys/gen_sch_msg_key", 'M'); // use unique key
-    int msgq_id = msgget(key_id, 0666 | IPC_CREAT); // create message queue and return id
+    int msgq_id = msgget(key_id, 0666 | IPC_CREAT);   // create message queue and return id
 
     if (msgq_id == -1)
     {
@@ -86,14 +86,34 @@ int prepareMessageQueue()
     return msgq_id;
 }
 
-int prepareSemaphore(char* filePath)
+int prepareSemaphore(char *filePath, int initVal)
 {
 
-    key_t sem_key = ftok(filePath, 'M'); // use unique key
-    if (sem_key == -1) perror("ftok error");
-    
+    key_t sem_key = ftok(filePath, 'S'); // use unique key
+    if (sem_key == -1)
+        perror("ftok error");
+
     int sem_id = semget(sem_key, 1, 0666 | IPC_CREAT); // Create semaphore and return it
-    if (sem_id < 0) perror("Semaphore Error");
+    if (sem_id < 0)
+        perror("Semaphore Error");
+
+    union Semun semun;
+    semun.val = initVal; // Initial value of the semaphore
+    if (semctl(sem_id, 0, SETVAL, semun) == -1)
+        perror("Error in semctl");
+
+    return sem_id;
+}
+
+int getSemaphore(char *filePath)
+{
+    key_t sem_key = ftok(filePath, 'S'); // use unique key
+    if (sem_key == -1)
+        perror("ftok error");
+
+    int sem_id = semget(sem_key, 1, 0666 | IPC_CREAT); // Create semaphore and return it
+    if (sem_id < 0)
+        perror("Semaphore Error");
 
     return sem_id;
 }
@@ -108,7 +128,7 @@ void checkForProcessCompletion(bool *processRunningFlag, pid_t *child_pid)
         {
             // Child process finished
             *processRunningFlag = false;
-            // *child_pid = -1;
+            *child_pid = -1;
         }
     }
 }
@@ -127,7 +147,7 @@ void down(int sem)
         exit(-1);
     }
 
-    printf("DOWN\n");
+    // printf("DOWN\n");
 }
 
 void up(int sem)
@@ -144,6 +164,5 @@ void up(int sem)
         exit(-1);
     }
 
-    //printf("Finished UP\n");
+    // printf("Finished UP\n");
 }
-

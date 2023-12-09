@@ -1,5 +1,7 @@
 #include "priority_queue.h"
 
+int sch_child_sem_id;
+
 void receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
 {
     if (message.mtype == TERMINATION_MSG_TYPE)
@@ -25,7 +27,8 @@ void HPF()
     // Initialize message queue
     printf("HPF: Starting Algorthim...\n");
     int msgq_id = prepareMessageQueue();
-    int gen_sch_sem_id = prepareSemaphore("keys/gen_sch_sem_key");
+    int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
+    sch_child_sem_id = prepareSemaphore("keys/sch_child_sem_key", 0);
 
     struct msgbuff message;
 
@@ -42,10 +45,11 @@ void HPF()
     while (!isEmpty(priorityQueue) || !allProcessesSentFlag || processRunningFlag)
     {
         // printf("HPF: Looping...\n");
-        if (!allProcessesSentFlag) down(gen_sch_sem_id);
-
-        // Check for process completion
-        checkForProcessCompletion(&processRunningFlag, &child_pid);
+        if (!allProcessesSentFlag)
+        {
+            down(gen_sch_sem_id);
+            // printf("Downing gen_sch_sem_id\n");
+        }
 
         // Receive a process from the message queue
         if (!allProcessesSentFlag)
@@ -58,29 +62,47 @@ void HPF()
             child_pid = fork();
             if (child_pid == 0)
             {
-                // Child process: simulate process execution
-                int prevTime = getClk();
-                printf("Process %d running at time %d\n", nextProcess->id, getClk());
+                int currTime = getClk(), iter = 0;
 
                 while (nextProcess->remainingTime != 0)
                 {
-                    if (getClk() != prevTime)
-                    {
-                        if (nextProcess->remainingTime != 1)
-                            printf("Process %d running at time %d\n", nextProcess->id, getClk());
-                        prevTime = getClk();
-                        nextProcess->remainingTime--;
-                    }
+                    // printf("Downing sch_child_sem_id at time %d\n", getClk());
+                    down(sch_child_sem_id);
+                    printf("Process %d running at time %d\n", nextProcess->id, getClk());
+                    nextProcess->remainingTime--;
+                    // iter++;
+                    // if (nextProcess->remainingTime != 0)
                 }
+
+                // printf("Upping sch_child_sem_id outside loop\n");
+                // up(sch_child_sem_id);
                 free(nextProcess);
                 exit(0);
             }
             else if (child_pid > 0)
+            {
                 // Update CPU state to idle
                 processRunningFlag = true;
+                // up(sch_child_sem_id);
+                // printf("Upping sch_child_sem_id at time %d\n", currTime);
+            }
             else
                 // Handle fork error
                 perror("Fork failed");
+        }
+
+        // Check for process completion
+        checkForProcessCompletion(&processRunningFlag, &child_pid);
+
+        if (processRunningFlag)
+        {
+            int currTime = getClk();
+            up(sch_child_sem_id);
+            // printf("Upping sch_child_sem_id at time %d\n", currTime);
+
+            while (currTime == getClk())
+            {
+            }
         }
     }
 

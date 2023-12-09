@@ -5,7 +5,8 @@ int gen_sch_sem_id;
 
 void clearResources(int);
 
-int readInputFile(char* filename, struct process* processes) {
+int readInputFile(char *filename, struct process *processes)
+{
     FILE *file = fopen("processes.txt", "r");
     if (file == NULL)
     {
@@ -33,7 +34,8 @@ int readInputFile(char* filename, struct process* processes) {
     return num_processes;
 }
 
-void getSchedulingParameters(int* scheduling_algo, int* quantum) {
+void getSchedulingParameters(int *scheduling_algo, int *quantum)
+{
 
     printf("Choose scheduling algorithm: \n");
     printf("1. Non-preemptive Highest Priority First (HPF)\n");
@@ -50,7 +52,8 @@ void getSchedulingParameters(int* scheduling_algo, int* quantum) {
     }
 }
 
-pid_t createSchedulerProcess(int scheduling_algo, int quantum) {
+pid_t createSchedulerProcess(int scheduling_algo, int quantum)
+{
     // Parent process: continue creating the scheduler process
     pid_t scheduler_pid = fork();
     if (scheduler_pid == -1)
@@ -76,7 +79,8 @@ pid_t createSchedulerProcess(int scheduling_algo, int quantum) {
     return scheduler_pid;
 }
 
-void createClockProcess() {
+void createClockProcess()
+{
     pid_t clk_pid = fork();
     if (clk_pid == -1)
     {
@@ -94,7 +98,8 @@ void createClockProcess() {
     }
 }
 
-void sendProcessesToScheduler(int num_processes, struct process* processes, int scheduler_pid) {
+void sendProcessesToScheduler(int num_processes, struct process *processes, int scheduler_pid)
+{
     struct msgbuff message;
     for (int i = 0; i < num_processes; i++)
 
@@ -102,8 +107,10 @@ void sendProcessesToScheduler(int num_processes, struct process* processes, int 
         int currTime = getClk();
         int nextArrivalTime = processes[i].arrival;
 
-        while (currTime < nextArrivalTime) {
-            if (currTime != getClk()) {
+        while (currTime < nextArrivalTime)
+        {
+            if (currTime != getClk())
+            {
                 currTime = getClk();
                 if (currTime != nextArrivalTime)
                     up(gen_sch_sem_id);
@@ -120,11 +127,12 @@ void sendProcessesToScheduler(int num_processes, struct process* processes, int 
                 perror("Error in sending message");
                 exit(-1);
             }
-            //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            // printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
         }
-        //printf("Sent Processes\n");
+        // printf("Sent Processes\n");
         up(gen_sch_sem_id);
+        // printf("Upping gen_sch_sem_id\n");
         i--;
     }
 
@@ -135,8 +143,10 @@ void sendProcessesToScheduler(int num_processes, struct process* processes, int 
 
 int main(int argc, char *argv[])
 {
-    gen_sch_sem_id = prepareSemaphore("keys/gen_sch_sem_key");
-    
+
+    signal(SIGINT, clearResources);
+    gen_sch_sem_id = prepareSemaphore("keys/gen_sch_sem_key", 0);
+
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
     int num_processes = readInputFile("processes.txt", processes);
