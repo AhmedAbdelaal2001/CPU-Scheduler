@@ -7,7 +7,7 @@ void clearResources(int);
 
 int readInputFile(char *filename, struct process *processes)
 {
-    FILE *file = fopen("processes.txt", "r");
+    FILE *file = fopen(filename, "r");
     if (file == NULL)
     {
         perror("Error opening file");
@@ -107,13 +107,15 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
         int currTime = getClk();
         int nextArrivalTime = processes[i].arrival;
 
-        while (currTime < nextArrivalTime)
+        while (getClk() < nextArrivalTime)
         {
-            if (currTime != getClk())
+
+            if (currTime != nextArrivalTime)
+                up(gen_sch_sem_id);
+
+            currTime = getClk();
+            while (currTime == getClk())
             {
-                currTime = getClk();
-                if (currTime != nextArrivalTime)
-                    up(gen_sch_sem_id);
             }
         }
 
@@ -127,12 +129,12 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
                 perror("Error in sending message");
                 exit(-1);
             }
-            // printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
         }
-        // printf("Sent Processes\n");
+        printf("Sent Processes\n");
         up(gen_sch_sem_id);
-        // printf("Upping gen_sch_sem_id\n");
+        printf("Upping gen_sch_sem_id\n");
         i--;
     }
 
@@ -149,7 +151,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("processes.txt", processes);
+    int num_processes = readInputFile("tests/easy.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;
@@ -171,7 +173,7 @@ int main(int argc, char *argv[])
     printf("Entering main loop\n");
 
     // create message queue between process_generator and scheduler
-    msgq_id = prepareMessageQueue();
+    msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
     sendProcessesToScheduler(num_processes, processes, scheduler_pid);
 
     // Wait for the scheduler process to finish

@@ -71,11 +71,11 @@ void setProcessInformation(struct process *newProcess, int id, int arrival, int 
     newProcess->pid = -1;
 }
 
-int prepareMessageQueue()
+int prepareMessageQueue(char *filePath)
 {
 
-    key_t key_id = ftok("keys/gen_sch_msg_key", 'M'); // use unique key
-    int msgq_id = msgget(key_id, 0666 | IPC_CREAT);   // create message queue and return id
+    key_t key_id = ftok(filePath, 'M');             // use unique key
+    int msgq_id = msgget(key_id, 0666 | IPC_CREAT); // create message queue and return id
 
     if (msgq_id == -1)
     {

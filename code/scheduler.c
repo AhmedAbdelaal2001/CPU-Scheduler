@@ -1,13 +1,14 @@
+#include "headers.h"
 #include "highest_priority_first.h"
-#include "RR.h"
-
 
 int main(int argc, char *argv[])
 {
+    printf("SCHEDULER1: started\n");
     initClk();
 
     // TODO implement the scheduler :)
     // upon termination release the clock resources.
+    printf("SCHEDULER2: started\n");
     int schedulingAlgorithm = atoi(argv[1]);
 
     if (schedulingAlgorithm == 1)
