@@ -9,6 +9,7 @@ void SRTN_checkForProcessCompletion(struct process **runningProcess)
         if (waitpid((*runningProcess)->pid, &status, WNOHANG) > 0)
         {
             // Child process finished
+            //printf("Process %d is completed at time %d\n", (*runningProcess)->id, getClk());
             *runningProcess = NULL;
         }
     }
@@ -37,14 +38,16 @@ struct process *SRTN_handlePreemption(struct process *runningProcess)
     // TODO: Preemption Logic...
 
     // Return NULL
+    //printf("Preemption process %d at time %d\n", runningProcess->id, getClk());
     return NULL;
 }
 
 void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
 {
-    if (message.mtype == TERMINATION_MSG_TYPE)
+    if (message.mtype == TERMINATION_MSG_TYPE) {
         *allProcessesSentFlag = true; // All processes have been received
-    else
+        printf("Received Termination Message at time %d\n", getClk());
+    } else
     {
         // Create a process pointer
         struct process *newProcess = (struct process *)malloc(sizeof(struct process));
@@ -55,6 +58,8 @@ void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, b
         // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
         // the priority queue will automatically handle the ordering of the values with respect to the running time.
         minHeapInsert(priorityQueue, newProcess);
+
+        printf("Received Message %d at time %d\n", message.p.id, getClk());
     }
 }
 
@@ -108,6 +113,7 @@ void SRTN()
         if (!allProcessesSentFlag)
         {
             down(gen_sch_sem_id);
+            printf("Down Completed\n");
             SRTN_receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
         }
 
@@ -124,6 +130,7 @@ void SRTN()
             runningProcess = heapExtractMin(priorityQueue);
             if (runningProcess->pid == -1)
             {
+                //printf("Process %d will start running at time %d\n", runningProcess->id, getClk());
                 runningProcess->pid = fork();
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
@@ -134,14 +141,14 @@ void SRTN()
 
         if (runningProcess)
         {
-            printf("Remaining time: %d\n", runningProcess->remainingTime);
             sch_child_message.mtype = runningProcess->pid;
             msgsnd(sch_child_msgq_id, &sch_child_message, sizeof(sch_child_message.p), !IPC_NOWAIT);
-            int currTime = getClk();
-            while (currTime == getClk())
-            {
+            if (allProcessesSentFlag) {
+                int currTime = getClk();
+                while (currTime == getClk()) {}
             }
             runningProcess->remainingTime--;
+            //printf("Remaining time: %d\n", runningProcess->remainingTime);
         }
     }
 
