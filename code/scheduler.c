@@ -1,4 +1,5 @@
-#include "highest_priority_first.h"
+// #include "highest_priority_first.h"
+#include "shortest_remaining_time_next.h"
 
 int main(int argc, char *argv[])
 {
@@ -11,11 +12,12 @@ int main(int argc, char *argv[])
     int schedulingAlgorithm = atoi(argv[1]);
 
     if (schedulingAlgorithm == 1)
-        HPF();
-    // else if (schedulingAlgorithm == 2)
-    //     SRTN();
-    //else if (schedulingAlgorithm == 3)
-        //RR();
+        // HPF();
+        printf("Not Implemented Yet :(\n");
+    else if (schedulingAlgorithm == 2)
+        SRTN();
+    // else if (schedulingAlgorithm == 3)
+    // RR();fsfhfkjhfouefoed
     else
         printf("Not Implemented Yet :(\n");
 

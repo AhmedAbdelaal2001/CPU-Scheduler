@@ -109,10 +109,13 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
         while (getClk() < nextArrivalTime)
         {
 
-            if (currTime != nextArrivalTime) up(gen_sch_sem_id);
+            if (currTime != nextArrivalTime)
+                up(gen_sch_sem_id);
 
             currTime = getClk();
-            while (currTime == getClk()) {}
+            while (currTime == getClk())
+            {
+            }
         }
 
         while (currTime == processes[i].arrival)
@@ -125,12 +128,12 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
                 perror("Error in sending message");
                 exit(-1);
             }
-            //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            // printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
         }
-        //printf("Sent Processes\n");
+        // printf("Sent Processes\n");
         up(gen_sch_sem_id);
-        //printf("Upping gen_sch_sem_id\n");
+        // printf("Upping gen_sch_sem_id\n");
         i--;
     }
 
