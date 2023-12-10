@@ -1,4 +1,4 @@
-
+#include "headers.h"
 
 typedef struct
 {
@@ -44,7 +44,7 @@ void addElement(Array *arr, struct process *element)
     }
     arr->data[arr->size] = element;
     arr->size++;
-    printf("Process %d added to array\n", element->id);
+    //printf("Process %d added to array\n", element->id);
 }
 
 // Function to update an element in the array

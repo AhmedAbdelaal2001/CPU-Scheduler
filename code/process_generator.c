@@ -109,7 +109,7 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
         while (currTime < nextArrivalTime)
         {
             up(gen_sch_sem_id);
-            printf("Finished Up\n");
+            //printf("Finished Up\n");
 
             currTime = getClk();
             while (currTime == getClk())
@@ -128,7 +128,7 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
                 perror("Error in sending message");
                 exit(-1);
             }
-            // printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
+            //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
 
             if (i == num_processes) {
@@ -140,7 +140,7 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
         }
         // printf("Sent Processes\n");
         up(gen_sch_sem_id);
-        printf("Finished Up\n");
+        //printf("Finished Up\n");
 
         currTime = getClk();
         while (currTime == getClk())
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("processes.txt", processes);
+    int num_processes = readInputFile("processes3.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;
