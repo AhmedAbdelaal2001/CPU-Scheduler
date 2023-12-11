@@ -1,6 +1,6 @@
-#include "priority_queue.h"
+#include "Array.h"
 
-void SRTN_checkForProcessCompletion(struct process **runningProcess)
+void RR_checkForProcessCompletion(Array* processes, struct process **runningProcess, int* processToRun, int* quantumRemainingTime, int quantum)
 {
     int status;
     // Check for process completion
@@ -11,28 +11,27 @@ void SRTN_checkForProcessCompletion(struct process **runningProcess)
             // Child process finished
             //printf("Process %d is completed at time %d\n", (*runningProcess)->id, getClk());
             *runningProcess = NULL;
+            removeElement(processes, *processToRun);
+            *processToRun = (*processToRun) % processes->size;
+            *quantumRemainingTime = quantum;
         }
     }
 }
 
-bool SRTN_DetectAndHandlePreemption(PriorityQueue *priorityQueue, struct process **runningProcess)
+void RR_DetectAndHandlePreemption(Array* processes, struct process **runningProcess, int* processToRun, int* quantumRemainingTime, int quantum)
 {
-    if (*runningProcess && !isEmpty(priorityQueue))
+    if (*runningProcess && !isArrEmpty(processes))
     {
-        struct process *minProcess = heapMinimum(priorityQueue);
-        if (minProcess->remainingTime < (*runningProcess)->remainingTime)
+        if (*quantumRemainingTime == 0)
         {
-            (*runningProcess)->priority = (*runningProcess)->remainingTime;
-            minHeapInsert(priorityQueue, *runningProcess);
+            *processToRun = (*processToRun + 1) % processes->size;
             *runningProcess = NULL;
-            return true;
+            *quantumRemainingTime = quantum;
         }
     }
-
-    return false;
 }
 
-void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
+void RR_receiveProcess(struct msgbuff message, Array* processes, bool *allProcessesSentFlag)
 {
     if (message.mtype == TERMINATION_MSG_TYPE) {
         *allProcessesSentFlag = true; // All processes have been received
@@ -43,25 +42,26 @@ void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, b
         struct process *newProcess = (struct process *)malloc(sizeof(struct process));
 
         // The process's priority, which is the last input to the function, is set as the runtime; since we are using SRTN.
-        setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.runtime);
+        setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority);
 
         // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
         // the priority queue will automatically handle the ordering of the values with respect to the running time.
-        minHeapInsert(priorityQueue, newProcess);
+        addElement(processes, newProcess);
 
-        //printf("Received Message %d at time %d\n", message.p.id, getClk());
+        //printf("Received Process %d at time %d\n", processes->data[processes->size - 1]->id, getClk());
     }
 }
 
-void SRTN_receiveProcesses(int msgq_id, struct msgbuff *message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
+void RR_receiveProcesses(int msgq_id, struct msgbuff *message, Array* processes, bool *allProcessesSentFlag)
 {
     while (msgrcv(msgq_id, message, sizeof(message->p), 0, IPC_NOWAIT) != -1)
     {
-        SRTN_receiveProcess(*message, priorityQueue, allProcessesSentFlag);
+        RR_receiveProcess(*message, processes, allProcessesSentFlag);
+        //printf("Received Process %d at time %d\n", processes->data[processes->size - 1]->id, getClk());
     }
 }
 
-void SRTN_childProcessCode(struct process *runningProcess)
+void RR_childProcessCode(struct process *runningProcess)
 {
     int sch_child_msgq_id = prepareMessageQueue("keys/sch_child_msgq_key");
     struct msgbuff sch_child_message;
@@ -76,47 +76,51 @@ void SRTN_childProcessCode(struct process *runningProcess)
     exit(0);
 }
 
-void SRTN()
+void RR(int quantum)
 {
     // Initialize message queue
-    printf("SRTN: Starting Algorthim...\n");
+    printf("RR: Starting Algorthim...\n");
     int msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
     int sch_child_msgq_id = prepareMessageQueue("keys/sch_child_msgq_key");
     int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
 
     struct msgbuff message;
     struct msgbuff sch_child_message;
-    // Initialize priority queue
-    PriorityQueue *priorityQueue = (PriorityQueue *)malloc(sizeof(PriorityQueue));
-    initializePriorityQueue(priorityQueue);
+
+    // Initialize array
+    Array *processes = (Array *)malloc(sizeof(Array));
+    initArray(processes, 1);
 
     bool allProcessesSentFlag = false;
     bool preemptionFlag = false;
     struct process *runningProcess = NULL;
+    int processToRun = 0;
+    int quantumRemainingTime = quantum;
 
     int status;
     pid_t child_pid = -1; // Track the PID of the running child process
 
-    while (!isEmpty(priorityQueue) || !allProcessesSentFlag || runningProcess)
+    while (!isArrEmpty(processes) || !allProcessesSentFlag || runningProcess)
     {
         // Receive a process from the message queue
         if (!allProcessesSentFlag)
         {
             down(gen_sch_sem_id);
             //printf("Down Completed\n");
-            SRTN_receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
+            RR_receiveProcesses(msgq_id, &message, processes, &allProcessesSentFlag);
         }
 
+
         // Check for process completion
-        SRTN_checkForProcessCompletion(&runningProcess);
+        RR_checkForProcessCompletion(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum);
 
         // Check for any preemptions
-        SRTN_DetectAndHandlePreemption(priorityQueue, &runningProcess);
+        RR_DetectAndHandlePreemption(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum);
 
         // Check if the CPU is idle and there is a process to run
-        if ((!runningProcess && !isEmpty(priorityQueue)))
+        if ((!runningProcess && !isArrEmpty(processes)))
         {
-            runningProcess = heapExtractMin(priorityQueue);
+            runningProcess = processes->data[processToRun];
             if (runningProcess->pid == -1)
             {
                 //printf("Process %d will start running at time %d\n", runningProcess->id, getClk());
@@ -124,7 +128,7 @@ void SRTN()
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
                 else if (runningProcess->pid == 0)
-                    SRTN_childProcessCode(runningProcess);
+                    RR_childProcessCode(runningProcess);
             }
         }
 
@@ -136,7 +140,7 @@ void SRTN()
                 int currTime = getClk();
                 while (currTime == getClk()) {}
             }
-            runningProcess->remainingTime--;
+            quantumRemainingTime--;
             //printf("Remaining time: %d\n", runningProcess->remainingTime);
         }
     }
@@ -145,5 +149,5 @@ void SRTN()
     msgctl(msgq_id, IPC_RMID, NULL);
     msgctl(sch_child_msgq_id, IPC_RMID, NULL);
     // Free priority queue since it was dynamically allocated
-    free(priorityQueue);
+    freeArray(processes);
 }

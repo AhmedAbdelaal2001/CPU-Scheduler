@@ -1,52 +1,65 @@
 #include "priority_queue.h"
 
-int prepareMessageQueue() {
-    
-    key_t key_id;
-    int msgq_id;
-
-    key_id = ftok("keys/gen_sch_msg_key", 'M');   // use unique key
-    msgq_id = msgget(key_id, 0666 | IPC_CREAT); // create message queue and return id
-
-    if (msgq_id == -1)
-    {
-        perror("Error in create");
-        exit(-1);
-    }
-
-    return msgq_id;
-
-}
-
-void checkForProcessCompletion(bool* processRunningFlag, pid_t* child_pid) {
+void checkForProcessCompletion(struct process** runningProcess, pid_t *child_pid)
+{
     int status;
     // Check for process completion
-    if (*processRunningFlag && *child_pid > 0)
+    if (*runningProcess)
     {
         if (waitpid(*child_pid, &status, WNOHANG) > 0)
         {
             // Child process finished
-            *processRunningFlag = false;
+            *runningProcess = NULL;
             *child_pid = -1;
         }
     }
 }
 
-void receiveProcess(struct msgbuff message, PriorityQueue* priorityQueue, bool* allProcessesSentFlag) {
+void receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
+{
     if (message.mtype == TERMINATION_MSG_TYPE)
-        *allProcessesSentFlag = true; //All processes have been received
-    else{
+        *allProcessesSentFlag = true; // All processes have been received
+    else
+    {
         // Create a process pointer
-        struct process* newProcess = (struct process*)malloc(sizeof(struct process));
+        struct process *newProcess = (struct process *)malloc(sizeof(struct process));
         setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority);
+        
         // Insert the process into the priority queue
         minHeapInsert(priorityQueue, newProcess);
     }
 }
 
-void HPF() {
+void receiveProcesses(int msgq_id, struct msgbuff *message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
+{
+    int currTime = getClk();
+    while (msgrcv(msgq_id, message, sizeof(message->p), 0, IPC_NOWAIT) != -1)
+    {
+        receiveProcess(*message, priorityQueue, allProcessesSentFlag);
+    }
+}
+
+void childProcessCode(struct process* runningProcess, int sch_child_sem_id) {
+    while (runningProcess->remainingTime != 0)
+    {
+        // printf("Downing sch_child_sem_id at time %d\n", getClk());
+        down(sch_child_sem_id);
+
+        printf("Process %d running at time %d\n", runningProcess->id, getClk());
+        runningProcess->remainingTime--;
+    }
+    free(runningProcess);
+    exit(0);
+}
+
+void HPF()
+{
     // Initialize message queue
-    int msgq_id = prepareMessageQueue();
+    printf("HPF: Starting Algorthim...\n");
+    int msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
+    int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
+    int sch_child_sem_id = prepareSemaphore("keys/sch_child_sem_key", 0);
+
     struct msgbuff message;
 
     // Initialize priority queue
@@ -54,52 +67,37 @@ void HPF() {
     initializePriorityQueue(priorityQueue);
 
     bool allProcessesSentFlag = false;
-    bool processRunningFlag = false;
+    struct process* runningProcess = NULL;
 
     int status;
     pid_t child_pid = -1; // Track the PID of the running child process
 
-    while (!isEmpty(priorityQueue) || !allProcessesSentFlag || processRunningFlag)
+    while (!isEmpty(priorityQueue) || !allProcessesSentFlag || runningProcess)
     {
-
-        // Check for process completion
-        checkForProcessCompletion(&processRunningFlag, &child_pid);
-
         // Receive a process from the message queue
         if (!allProcessesSentFlag)
-            if (msgrcv(msgq_id, &message, sizeof(message.p), 0, IPC_NOWAIT) != -1)
-                // Message received successfully
-                receiveProcess(message, priorityQueue, &allProcessesSentFlag);
+        {
+            down(gen_sch_sem_id);
+            receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
+        }
+
+        // Check for process completion
+        checkForProcessCompletion(&runningProcess, &child_pid);
 
         // Check if the CPU is idle and there is a process to run
-        if (!processRunningFlag && !isEmpty(priorityQueue))
+        if (!runningProcess && !isEmpty(priorityQueue))
         {
-            struct process *nextProcess = heapExtractMin(priorityQueue);
+            runningProcess = heapExtractMin(priorityQueue);
             child_pid = fork();
-            if (child_pid == 0)
-            {
-                // Child process: simulate process execution
-                int prevTime = getClk();
-                printf("Process %d running at time %d\n", nextProcess->id, getClk());
-                
-                while (nextProcess->remainingTime != 0)
-                {
-                    if (getClk() != prevTime)
-                    {
-                        if (nextProcess->remainingTime != 1)
-                            printf("Process %d running at time %d\n", nextProcess->id, getClk());
-                        prevTime = getClk();
-                        nextProcess->remainingTime--;
-                    }
-                }
-                exit(0);
-            }
-            else if (child_pid > 0)
-                // Update CPU state to idle
-                processRunningFlag = true;
-            else
-                // Handle fork error
-                perror("Fork failed");
+            if (child_pid == -1) perror("Fork Falied");
+            else if (child_pid == 0) childProcessCode(runningProcess, sch_child_sem_id);
+        }
+
+        if (runningProcess)
+        {
+            up(sch_child_sem_id);
+            int currTime = getClk();
+            while (currTime == getClk()) {}
         }
     }
 
