@@ -1,7 +1,7 @@
 // #include "highest_priority_first.h"
-//#include "shortest_remaining_time_next.h"
-//#include "highest_priority_first.h"
-#include "RR3.h"
+#include "shortest_remaining_time_next.h"
+// #include "highest_priority_first.h"
+// #include "RR3.h"
 
 int main(int argc, char *argv[])
 {
@@ -18,14 +18,14 @@ int main(int argc, char *argv[])
         // HPF();
         printf("Not Implemented Yet :(\n");
     else if (schedulingAlgorithm == 2)
-        //SRTN();
-        printf("Not Implemented Yet :(\n");
+        SRTN();
+    // printf("Not Implemented Yet :(\n");
     // else if (schedulingAlgorithm == 3)
     // RR();fsfhfkjhfouefoed
     else
-        RR(quantum);
+        // RR(quantum);
 
-    destroyClk(true);
+        destroyClk(true);
     exit(0);
 
     return 0;
