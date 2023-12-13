@@ -56,7 +56,6 @@ struct process create_process(int id, int arrival, int runtime, int priority)
     p.remainingTime = runtime;
     p.pid = -1;
 
-    printf("Process %d created with pid: %d\n", p.id, p.pid);
     return p;
 }
 
@@ -131,8 +130,6 @@ void down(int sem)
         perror("Error in down()");
         exit(-1);
     }
-
-    // printf("DOWN\n");
 }
 
 void up(int sem)
@@ -148,6 +145,14 @@ void up(int sem)
         perror("Error in up()");
         exit(-1);
     }
+}
 
-    // printf("Finished UP\n");
+void runProcess(struct process *runningProcess)
+{
+    // convert id, remaining time to send through execl
+    char id[10];
+    char remainingTime[10];
+    sprintf(id, "%d", runningProcess->id);
+    sprintf(remainingTime, "%d", runningProcess->remainingTime);
+    execl("process.out", "process.out", id, remainingTime, NULL);
 }

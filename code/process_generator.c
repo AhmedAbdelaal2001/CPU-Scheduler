@@ -109,7 +109,6 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
         while (currTime < nextArrivalTime)
         {
             up(gen_sch_sem_id);
-            //printf("Finished Up\n");
 
             currTime = getClk();
             while (currTime == getClk())
@@ -128,25 +127,22 @@ void sendProcessesToScheduler(int num_processes, struct process *processes, int 
                 perror("Error in sending message");
                 exit(-1);
             }
-            //printf("Process %d sent to scheduler at time %d\n", message.p.id, getClk());
             i++;
 
-            if (i == num_processes) {
+            if (i == num_processes)
+            {
                 // Send the termination message
                 message.mtype = TERMINATION_MSG_TYPE; // Assuming TERMINATION_MSG_TYPE is defined
                 msgsnd(msgq_id, &message, sizeof(message.p), !IPC_NOWAIT);
                 break;
             }
         }
-        // printf("Sent Processes\n");
         up(gen_sch_sem_id);
-        //printf("Finished Up\n");
 
         currTime = getClk();
         while (currTime == getClk())
         {
         }
-        // printf("Upping gen_sch_sem_id\n");
         i--;
     }
 }
@@ -177,8 +173,6 @@ int main(int argc, char *argv[])
     // 5. Create a data structure for processes and provide it with its parameters.
     // 6. Send the information to the scheduler at the appropriate time.
     // (Assuming you have a message queue or other IPC mechanism set up for this)
-
-    printf("Entering main loop\n");
 
     // create message queue between process_generator and scheduler
     msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
