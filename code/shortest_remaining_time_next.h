@@ -174,25 +174,10 @@ void SRTN_receiveProcesses(int msgq_id, struct msgbuff *message, PriorityQueue *
     }
 }
 
-void SRTN_childProcessCode(struct process *runningProcess)
-{
-    int sch_child_msgq_id = prepareMessageQueue("keys/sch_child_msgq_key");
-    struct msgbuff sch_child_message;
-    while (runningProcess->remainingTime != 0)
-    {
-        // printf("Downing sch_child_sem_id at time %d\n", getClk());
-        msgrcv(sch_child_msgq_id, &sch_child_message, sizeof(sch_child_message.p), getpid(), !IPC_NOWAIT);
-        printf("Process %d running at time %d\n", runningProcess->id, getClk());
-        runningProcess->remainingTime--;
-    }
-    free(runningProcess);
-    exit(0);
-}
-
 void SRTN()
 {
     // Initialize message queue
-    printf("SRTN: Starting Algorthim...\n");
+    printf("SRTN: Starting Algorthim...\n\n");
     int msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
     int sch_child_msgq_id = prepareMessageQueue("keys/sch_child_msgq_key");
     int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
@@ -253,7 +238,7 @@ void SRTN()
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
                 else if (runningProcess->pid == 0)
-                    SRTN_childProcessCode(runningProcess);
+                    runProcess(runningProcess);
             }
         }
 

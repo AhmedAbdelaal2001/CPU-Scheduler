@@ -1,5 +1,3 @@
-#include "headers.h"
-
 typedef struct
 {
     struct process **data; // Pointer to dynamically allocated array
@@ -10,7 +8,6 @@ typedef struct
 // Function to initialize the array
 void initArray(Array *arr, int initialCapacity)
 {
-    printf("Initializing array with capacity %d\n", initialCapacity);
     arr->data = (struct process **)malloc(initialCapacity * sizeof(struct process *));
     arr->size = 0;
     arr->capacity = initialCapacity;
@@ -44,17 +41,14 @@ void addElement(Array *arr, struct process *element)
     }
     arr->data[arr->size] = element;
     arr->size++;
-    //printf("Process %d added to array\n", element->id);
 }
 
 // Function to update an element in the array
 void updateElement(Array *arr, int index, struct process *element)
 {
     if (index < 0 || index >= arr->size)
-    {
-        printf("Invalid index!\n");
         return;
-    }
+
     arr->data[index] = element;
 }
 
@@ -62,10 +56,8 @@ void updateElement(Array *arr, int index, struct process *element)
 void removeElement(Array *arr, int index)
 {
     if (index < 0 || index >= arr->size)
-    {
-        printf("Invalid index!\n");
         return;
-    }
+
     for (int i = index; i < arr->size - 1; i++)
     {
         arr->data[i] = arr->data[i + 1];

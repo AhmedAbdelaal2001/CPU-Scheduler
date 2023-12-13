@@ -1,104 +1,132 @@
-#include "Array.h"
+void RR_checkForProcessCompletion(Array *processes, struct process **runningProcess, int *processToRun, int *quantumRemainingTime, int quantum)
+{
+    int status;
+    // Check for process completion
+    if (*runningProcess)
+    {
+        if (waitpid((*runningProcess)->pid, &status, WNOHANG) > 0)
+        {
+            // Child process finished
+            *runningProcess = NULL;
+            removeElement(processes, *processToRun);
+            *processToRun = (*processToRun) % processes->size;
+            *quantumRemainingTime = quantum;
+        }
+    }
+}
 
-void AddProcessToArray(struct msgbuff message, Array *arr, bool *allProcessesSentFlag)
+void RR_DetectAndHandlePreemption(Array *processes, struct process **runningProcess, int *processToRun, int *quantumRemainingTime, int quantum)
+{
+    if (*runningProcess && !isArrEmpty(processes))
+    {
+        if (*quantumRemainingTime == 0)
+        {
+            *processToRun = (*processToRun + 1) % processes->size;
+            *runningProcess = NULL;
+            *quantumRemainingTime = quantum;
+        }
+    }
+}
+
+void RR_receiveProcess(struct msgbuff message, Array *processes, bool *allProcessesSentFlag)
 {
     if (message.mtype == TERMINATION_MSG_TYPE)
+    {
         *allProcessesSentFlag = true; // All processes have been received
+    }
     else
     {
         // Create a process pointer
         struct process *newProcess = (struct process *)malloc(sizeof(struct process));
+
+        // The process's priority, which is the last input to the function, is set as the runtime; since we are using SRTN.
         setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority);
-        // Insert the process into the array
-        addElement(arr, newProcess);
+
+        // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
+        // the priority queue will automatically handle the ordering of the values with respect to the running time.
+        addElement(processes, newProcess);
     }
 }
 
-void RR()
+void RR_receiveProcesses(int msgq_id, struct msgbuff *message, Array *processes, bool *allProcessesSentFlag)
 {
-    int msgq_id = prepareMessageQueue();
+    while (msgrcv(msgq_id, message, sizeof(message->p), 0, IPC_NOWAIT) != -1)
+    {
+        RR_receiveProcess(*message, processes, allProcessesSentFlag);
+    }
+}
+
+void RR(int quantum)
+{
+    // Initialize message queue
+    printf("RR: Starting Algorthim...\n\n");
+    int msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
+    int sch_child_msgq_id = prepareMessageQueue("keys/sch_child_msgq_key");
+    int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
 
     struct msgbuff message;
+    struct msgbuff sch_child_message;
 
-    // Create array for processes
+    // Initialize array
     Array *processes = (Array *)malloc(sizeof(Array));
-    initArray(processes, 0);
+    initArray(processes, 1);
 
     bool allProcessesSentFlag = false;
-    bool processRunningFlag = false;
+    bool preemptionFlag = false;
+    struct process *runningProcess = NULL;
+    int processToRun = 0;
+    int quantumRemainingTime = quantum;
 
-    int status, processToRun = 0, quantum = 1;
+    int status;
+    pid_t child_pid = -1; // Track the PID of the running child process
 
-    while (!isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag)
+    while (!isArrEmpty(processes) || !allProcessesSentFlag || runningProcess)
     {
-        printf("AHOO1: %d\n", !isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag);
-
         // Receive a process from the message queue
-        // if (!allProcessesSentFlag)
-            //receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
-
-        printf("AHOO2: %d\n", !isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag);
-
-        // Get the next process to run
-        struct process *process = processes->data[processToRun];
-        if (process->pid == -1)
-            process->pid = fork();
-        printf("AHOO3: %d\n", !isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag);
-        if (process->pid == 0)
+        if (!allProcessesSentFlag)
         {
-            // Child process: simulate process execution
-            int prevTime = getClk();
-            printf("Process %d running at time %d\n", process->id, prevTime);
+            down(gen_sch_sem_id);
+            RR_receiveProcesses(msgq_id, &message, processes, &allProcessesSentFlag);
+        }
 
-            while (process->remainingTime != 0)
+        // Check for process completion
+        RR_checkForProcessCompletion(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum);
+
+        // Check for any preemptions
+        RR_DetectAndHandlePreemption(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum);
+
+        // Check if the CPU is idle and there is a process to run
+        if ((!runningProcess && !isArrEmpty(processes)))
+        {
+            runningProcess = processes->data[processToRun];
+            if (runningProcess->pid == -1)
             {
-                if (getClk() != prevTime)
+                runningProcess->pid = fork();
+                if (runningProcess->pid == -1)
+                    perror("Fork Falied");
+                else if (runningProcess->pid == 0)
+                    runProcess(runningProcess);
+            }
+        }
+
+        if (runningProcess)
+        {
+            sch_child_message.mtype = runningProcess->pid;
+            msgsnd(sch_child_msgq_id, &sch_child_message, sizeof(sch_child_message.p), !IPC_NOWAIT);
+            if (allProcessesSentFlag)
+            {
+                int currTime = getClk();
+                while (currTime == getClk())
                 {
-                    if (process->remainingTime != 1)
-                        printf("Process %d running at time %d\n", process->id, getClk());
-                    prevTime = getClk();
-                    process->remainingTime--;
                 }
             }
-            exit(0);
+            quantumRemainingTime--;
         }
-        else
-        {
-            // Update CPU state to idle
-            kill(process->pid, SIGCONT);
-            processRunningFlag = true;
-
-            printf("Process %d resumed at time %d\n", process->id, getClk());
-            int startTime = getClk();
-            while (getClk() - startTime < quantum)
-            {
-            }
-            printf("Deciding...\n");
-
-            checkForProcessCompletion(&processRunningFlag, &process->pid);
-            printf("processRunningFlag: %d\n", processRunningFlag);
-            if (processRunningFlag)
-            {
-                printf("Process %d stopped at time %d\n", process->id, getClk());
-                kill(process->pid, SIGSTOP);
-                processToRun = (processToRun + 1) % processes->size;
-                printf("Next process to run: %d\n", processToRun + 1);
-            }
-            else
-            {
-                printf("Process %d finished at time %d\n", process->id, getClk());
-                removeElement(processes, processToRun);
-                processRunningFlag = processes->size != 0;
-                processToRun = processToRun % processes->size;
-            }
-        }
-
-        printf("%d\n", !isArrEmpty(processes) || !allProcessesSentFlag || processRunningFlag);
     }
 
     // Clean up message queue
     msgctl(msgq_id, IPC_RMID, NULL);
-
+    msgctl(sch_child_msgq_id, IPC_RMID, NULL);
     // Free priority queue since it was dynamically allocated
     freeArray(processes);
 }
