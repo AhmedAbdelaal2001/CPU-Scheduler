@@ -28,6 +28,7 @@ struct process
     int remainingTime;
     int pid;
     int stopTime;
+    int waitTime;
     int resumeTime;
 };
 
@@ -64,7 +65,7 @@ void setProcessInformation(struct process *newProcess, int id, int arrival, int 
     newProcess->arrival = arrival;
     newProcess->runtime = runtime;
     newProcess->priority = priority;
-
+    newProcess->waitTime = 0;
     newProcess->remainingTime = runtime;
     newProcess->pid = -1;
 }

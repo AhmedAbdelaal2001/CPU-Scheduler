@@ -48,7 +48,6 @@ void storeLPerfAndLogFiles(struct log *logArray, int logArraySize, int idleCount
         // state = 0 for started, 1 for stopped, 2 for resumed, 3 for finished
         if (logArray[i].state == 3) // process is finished. Need Turnaround time and weighted turnaround time
         {
-            logArray[i].currTime--;
             // Calculate turnaround time and weighted turnaround time to the nearest 2 decimal places
             logArray[i].turnAroundTime = logArray[i].currTime - logArray[i].arrivalTime;
             logArray[i].weightedTurnAroundTime = (float)logArray[i].turnAroundTime / logArray[i].runTime;
@@ -89,6 +88,8 @@ void storeLPerfAndLogFiles(struct log *logArray, int logArraySize, int idleCount
     }
     // Calculate the average waiting time and average weighted turnaround time
     fclose(logFile);
+    avgWeightedTurnaroundTime /= countTurnAround;
+    avgWaitingTime /= countTurnAround;
 
     if (countWaiting == 0) // special case when no process waits
         avgWaitingTime = 0;
@@ -124,7 +125,7 @@ void SRTN_checkForProcessCompletion(struct process **runningProcess, struct log 
             // Child process finished
             // printf("Process %d is completed at time %d\n", (*runningProcess)->id, getClk());
             // Create a finished log
-            struct log Log = createLog((*runningProcess)->id, getClk(), 3, (*runningProcess)->arrival, (*runningProcess)->runtime, 0, 0);
+            struct log Log = createLog((*runningProcess)->id, getClk(), 3, (*runningProcess)->arrival, (*runningProcess)->runtime, 0, (*runningProcess)->waitTime);
             addLog(logArray, logArraySize, Log);
             *runningProcess = NULL;
         }
@@ -240,7 +241,8 @@ void SRTN()
             {
                 // Store resume time
                 runningProcess->resumeTime = getClk();
-                struct log Log = createLog(runningProcess->id, getClk(), 2, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->resumeTime - runningProcess->stopTime);
+                runningProcess->waitTime += runningProcess->resumeTime - runningProcess->stopTime;
+                struct log Log = createLog(runningProcess->id, getClk(), 2, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->waitTime);
                 addLog(&logArray, &logArraySize, Log);
             }
             if (runningProcess->pid == -1)
