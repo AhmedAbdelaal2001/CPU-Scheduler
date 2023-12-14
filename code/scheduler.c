@@ -1,9 +1,9 @@
 #include "headers.h"
-#include "priority_queue.h"
+// #include "priority_queue.h"
 #include "Array.h"
-#include "highest_priority_first.h"
+// #include "highest_priority_first.h"
 #include "shortest_remaining_time_next.h"
-#include "RR.h"
+// #include "RR.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,11 +16,13 @@ int main(int argc, char *argv[])
     int quantum = atoi(argv[2]);
 
     if (schedulingAlgorithm == 1)
-        HPF();
+        // HPF();
+        printf("HPF\n");
     else if (schedulingAlgorithm == 2)
         SRTN();
     else if (schedulingAlgorithm == 3)
-        RR(quantum);
+        // RR(quantum);
+        printf("RR\n");
     else
         printf("Invalid Input\n");
 

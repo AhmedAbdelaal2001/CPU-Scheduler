@@ -27,7 +27,7 @@ void addLog(struct log **logArray, int *size, struct log Log)
     (*size)++;
 }
 
-void storeLPerfAndLogFiles(struct log *logArray, int logArraySize)
+void storeLPerfAndLogFiles(struct log *logArray, int logArraySize, int idleCounter)
 {
     // Initialize average waiting time and average weighted turnaround time
     float avgWaitingTime = 0;
@@ -37,6 +37,8 @@ void storeLPerfAndLogFiles(struct log *logArray, int logArraySize)
 
     int countTurnAround = 0;
     int countWaiting = 0;
+
+    int totalTime = 0;
     // Print the log array
     // Initialize the log file
     FILE *logFile = fopen("scheduler.log", "w");
@@ -78,11 +80,20 @@ void storeLPerfAndLogFiles(struct log *logArray, int logArraySize)
                                                                                                                       : "finished",
                     logArray[i].arrivalTime, logArray[i].runTime, logArray[i].remainingTime, logArray[i].waitTime);
         }
+
+        // Getting the total time by the last finsihed process
+        if (i == logArraySize - 1)
+        {
+            totalTime = logArray[i].currTime;
+        }
     }
     // Calculate the average waiting time and average weighted turnaround time
     fclose(logFile);
-    avgWaitingTime /= countWaiting; // needs revising
-    avgWeightedTurnaroundTime /= countTurnAround;
+
+    if (countWaiting == 0) // special case when no process waits
+        avgWaitingTime = 0;
+    else
+        avgWaitingTime /= countWaiting;
 
     // Compute the standard deviation
     float standardDeviation = 0;
@@ -94,7 +105,7 @@ void storeLPerfAndLogFiles(struct log *logArray, int logArraySize)
     // Store the performance metrics
     FILE *performanceFile = fopen("scheduler.perf", "w");
     // Add CPU utilization to the file
-    // fprintf(performanceFile, "CPU utilization = %.2f%%\n", (float)(logArray[logArraySize - 1].currTime - logArray[0].currTime) / logArray[logArraySize - 1].currTime * 100);
+    fprintf(performanceFile, "CPU utilization = %.2f%%\n", (float)(totalTime - idleCounter) / totalTime * 100);
     // Add average waiting time and average weighted turnaround time to the file
     fprintf(performanceFile, "Average Waiting Time = %.2f\n", avgWaitingTime);
     fprintf(performanceFile, "Average Weighted Turnaround Time = %.2f\n", avgWeightedTurnaroundTime);
@@ -186,6 +197,10 @@ void SRTN()
     int logArraySize = 0;
     struct log *logArray = createLogArray(logArraySize);
 
+    // Initialize idle counter and total time
+    int idleCounter = 0;
+    int totalTime = 0;
+
     struct msgbuff message;
     struct msgbuff sch_child_message;
     // Initialize priority queue
@@ -210,6 +225,7 @@ void SRTN()
         }
 
         // Check for process completion
+        // Time is always end time + 1
         SRTN_checkForProcessCompletion(&runningProcess, &logArray, &logArraySize);
 
         // Check for any preemptions
@@ -241,6 +257,11 @@ void SRTN()
                     runProcess(runningProcess);
             }
         }
+        else if (!runningProcess && isEmpty(priorityQueue))
+        {
+            // printf("Incrementing idle counter\n");
+            idleCounter++;
+        }
 
         if (runningProcess)
         {
@@ -257,7 +278,9 @@ void SRTN()
             // printf("Remaining time: %d\n", runningProcess->remainingTime);
         }
     }
-
+    // idleCounter - 2 if you want to exclude last loop where it makes sure all procs ended
+    idleCounter = idleCounter - 2;
+    printf("SRTN: CPU is idle for %d seconds\n", idleCounter);
     // Clean up message queue
     msgctl(msgq_id, IPC_RMID, NULL);
     msgctl(sch_child_msgq_id, IPC_RMID, NULL);
@@ -266,5 +289,5 @@ void SRTN()
     printf("SRTN: Finished Algorthim...\n");
 
     // Store the log file
-    storeLPerfAndLogFiles(logArray, logArraySize);
+    storeLPerfAndLogFiles(logArray, logArraySize, idleCounter);
 }
