@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "definitions.h"
 
 #define true 1

@@ -1,6 +1,3 @@
-#include "stdlib.h"
-#include "stdio.h"
-
 // Define a constant for the maximum number of processes
 #define MAX_PROCESSES 100
 
@@ -30,6 +27,8 @@ struct process
 
     int remainingTime;
     int pid;
+    int stopTime;
+    int resumeTime;
 };
 
 struct msgbuff
@@ -155,4 +154,30 @@ void runProcess(struct process *runningProcess)
     sprintf(id, "%d", runningProcess->id);
     sprintf(remainingTime, "%d", runningProcess->remainingTime);
     execl("process.out", "process.out", id, remainingTime, NULL);
+}
+
+// Log file
+struct log
+{
+    int id;
+    int currTime;
+    int state; // 0: started, 1: stopped 2: resumed 3: finished
+    int arrivalTime;
+    int runTime;
+    int remainingTime;
+    int waitTime;
+    int turnAroundTime;           // finish time - arrival time
+    float weightedTurnAroundTime; // turnAroundTime / runTime
+};
+
+int prepareSharedMemory(char *filePath, int size)
+{
+    key_t key_id = ftok(filePath, 'S'); // use unique key
+    int shm_id = shmget(key_id, size, IPC_CREAT | 0666);
+    if (shm_id == -1)
+    {
+        perror("Error in create");
+        exit(-1);
+    }
+    return shm_id;
 }
