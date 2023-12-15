@@ -198,7 +198,7 @@ void clearResources(int signum)
     {
         perror("Error removing Generator-Scheduler Message Queue");
     }
-
+    
     if (semctl(gen_sch_sem_id, 0, IPC_RMID, NULL) == -1)
     {
         perror("Error removing Semaphore");

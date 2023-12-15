@@ -251,11 +251,12 @@ void RR(int quantum, int sch_child_msgq_id)
 
             if (runningProcess->pid == -1)
             {
-                // Add the process to the log array
-                struct log Log = RR_createLog(runningProcess->id, getClk(), 0, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, 0);
-                RR_addLog(&logArray, &logArraySize, Log);
-
                 runningProcess->pid = fork();
+                runningProcess->waitTime += getClk() - runningProcess->arrival;
+                struct log Log = RR_createLog(runningProcess->id, getClk(), 0, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->waitTime);
+                // Add the process to the log array
+                RR_addLog(&logArray, &logArraySize, Log);
+                
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
                 else if (runningProcess->pid == 0)

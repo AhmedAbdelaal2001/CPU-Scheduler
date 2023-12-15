@@ -1,4 +1,4 @@
 CPU utilization = 100.00%
-Average Waiting Time = 0.00
-Average Weighted Turnaround Time = 5.13
-Standard Deviation = 4.55
+Average Waiting = 21.00
+Average WTA = 5.13
+Std WTA = 4.55
