@@ -46,6 +46,10 @@ void RR_storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCou
         // state = 0 for started, 1 for stopped, 2 for resumed, 3 for finished
         if (logArray[i].state == 3) // process is finished. Need Turnaround time and weighted turnaround time
         {
+            // Calculate average waiting time
+            countWaiting++;
+            avgWaitingTime += logArray[i].waitTime;
+
             // Calculate turnaround time and weighted turnaround time to the nearest 2 decimal places
             logArray[i].turnAroundTime = logArray[i].currTime - logArray[i].arrivalTime;
             logArray[i].weightedTurnAroundTime = (float)logArray[i].turnAroundTime / logArray[i].runTime;
@@ -87,7 +91,6 @@ void RR_storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCou
     // Calculate the average waiting time and average weighted turnaround time
     fclose(logFile);
     avgWeightedTurnaroundTime /= countTurnAround;
-    avgWaitingTime /= countTurnAround;
 
     if (countWaiting == 0) // special case when no process waits
         avgWaitingTime = 0;
@@ -106,9 +109,9 @@ void RR_storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCou
     // Add CPU utilization to the file
     fprintf(performanceFile, "CPU utilization = %.2f%%\n", (float)(totalTime - idleCounter) / totalTime * 100);
     // Add average waiting time and average weighted turnaround time to the file
-    fprintf(performanceFile, "Average Waiting Time = %.2f\n", avgWaitingTime);
-    fprintf(performanceFile, "Average Weighted Turnaround Time = %.2f\n", avgWeightedTurnaroundTime);
-    fprintf(performanceFile, "Standard Deviation = %.2f\n", sqrt(standardDeviation / countTurnAround));
+    fprintf(performanceFile, "Average Waiting = %.2f\n", avgWaitingTime);
+    fprintf(performanceFile, "Average WTA = %.2f\n", avgWeightedTurnaroundTime);
+    fprintf(performanceFile, "Std WTA = %.2f\n", sqrt(standardDeviation / countTurnAround));
     fclose(performanceFile);
 }
 
@@ -133,7 +136,7 @@ void RR_checkForProcessCompletion(Array *processes, struct process **runningProc
                 *quantumRemainingTime = quantum;
             }
 
-            printf("Process finished\n");
+            // printf("Process finished\n");
         }
     }
 }
