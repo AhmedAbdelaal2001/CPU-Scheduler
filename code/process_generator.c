@@ -21,6 +21,8 @@ int readInputFile(char *filename, struct process *processes)
     {
         if (line[0] == '#')
             continue; // Skip comment lines
+        else if (line[0] == '\n')
+            break; // Stop reading at the first empty line (assuming the file is formatted correctly
 
         // Read process parameters
         int id, arrival, runtime, priority;
@@ -155,7 +157,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("processes3.txt", processes);
+    int num_processes = readInputFile("processes6.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;
@@ -198,7 +200,7 @@ void clearResources(int signum)
     {
         perror("Error removing Generator-Scheduler Message Queue");
     }
-    
+
     if (semctl(gen_sch_sem_id, 0, IPC_RMID, NULL) == -1)
     {
         perror("Error removing Semaphore");

@@ -78,7 +78,7 @@ void RR_storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCou
         // Getting the total time by the last finsihed process
         if (i == logArraySize - 1)
         {
-            totalTime = logArray[i].currTime;
+            totalTime = logArray[i].currTime - 1;
         }
     }
     // Calculate the average waiting time and average weighted turnaround time
@@ -235,7 +235,7 @@ void RR(int quantum, int sch_child_msgq_id)
             if (runningProcess->remainingTime < runningProcess->runtime)
             {
                 // Store resume time
-                //printf("Resuming process %d\n", runningProcess->id);
+                // printf("Resuming process %d\n", runningProcess->id);
                 runningProcess->resumeTime = getClk();
                 runningProcess->waitTime += runningProcess->resumeTime - runningProcess->stopTime;
                 struct log Log = RR_createLog(runningProcess->id, getClk(), 2, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->waitTime);

@@ -80,7 +80,7 @@ void HPF_storeLPerfAndLogFiles(struct log *logArray, int logArraySize, int idleC
         // Getting the total time by the last finsihed process
         if (i == logArraySize - 1)
         {
-            totalTime = logArray[i].currTime;
+            totalTime = logArray[i].currTime - 1;
         }
     }
     // Calculate the average waiting time and average weighted turnaround time
@@ -204,7 +204,7 @@ void HPF(int sch_child_msgq_id)
                 struct log Log = HPF_createLog(runningProcess->id, getClk(), 0, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->waitTime);
                 // Add the process to the log array
                 HPF_addLog(&logArray, &logArraySize, Log);
-                
+
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
                 else if (runningProcess->pid == 0)

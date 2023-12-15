@@ -80,7 +80,7 @@ void storeLPerfAndLogFiles(struct log *logArray, int logArraySize, int idleCount
         // Getting the total time by the last finsihed process
         if (i == logArraySize - 1)
         {
-            totalTime = logArray[i].currTime;
+            totalTime = logArray[i].currTime - 1;
         }
     }
     // Calculate the average waiting time and average weighted turnaround time
