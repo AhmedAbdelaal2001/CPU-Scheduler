@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("processes6.txt", processes);
+    int num_processes = readInputFile("./testcases/processes3.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;
