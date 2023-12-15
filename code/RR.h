@@ -68,13 +68,6 @@ void RR_storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCou
         }
         else
         {
-            // if a process resumes
-            if (logArray[i].state == 2)
-            {
-                // Add the waiting time to the average
-                countWaiting++;
-                avgWaitingTime += logArray[i].waitTime;
-            }
             fprintf(logFile, "At\ttime\t%d\tprocess\t%d\t%s\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",
                     logArray[i].currTime, logArray[i].id, logArray[i].state == 0 ? "started" : logArray[i].state == 1 ? "stopped"
                                                                                            : logArray[i].state == 2   ? "resumed"
@@ -148,7 +141,7 @@ void RR_DetectAndHandlePreemption(Array *processes, struct process **runningProc
         if (*quantumRemainingTime == 0)
         {
             // Create a preemption log for stopped process
-            struct log Log = RR_createLog((*runningProcess)->id, getClk(), 1, (*runningProcess)->arrival, (*runningProcess)->runtime, (*runningProcess)->remainingTime, 0);
+            struct log Log = RR_createLog((*runningProcess)->id, getClk(), 1, (*runningProcess)->arrival, (*runningProcess)->runtime, (*runningProcess)->remainingTime, (*runningProcess)->waitTime);
             RR_addLog(logArray, logArraySize, Log);
             // store stop time
             (*runningProcess)->stopTime = getClk();
@@ -256,7 +249,7 @@ void RR(int quantum, int sch_child_msgq_id)
                 struct log Log = RR_createLog(runningProcess->id, getClk(), 0, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->waitTime);
                 // Add the process to the log array
                 RR_addLog(&logArray, &logArraySize, Log);
-                
+
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
                 else if (runningProcess->pid == 0)

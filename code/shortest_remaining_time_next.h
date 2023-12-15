@@ -136,7 +136,7 @@ bool SRTN_DetectAndHandlePreemption(PriorityQueue *priorityQueue, struct process
         if (minProcess->remainingTime < (*runningProcess)->remainingTime)
         {
             // Create a preemption log for stopped process
-            struct log Log = createLog((*runningProcess)->id, getClk(), 1, (*runningProcess)->arrival, (*runningProcess)->runtime, (*runningProcess)->remainingTime, 0);
+            struct log Log = createLog((*runningProcess)->id, getClk(), 1, (*runningProcess)->arrival, (*runningProcess)->runtime, (*runningProcess)->remainingTime, (*runningProcess)->waitTime);
             addLog(logArray, logArraySize, Log);
             // store stop time
             (*runningProcess)->stopTime = getClk();
@@ -247,7 +247,7 @@ void SRTN(int sch_child_msgq_id)
                 struct log Log = createLog(runningProcess->id, getClk(), 0, runningProcess->arrival, runningProcess->runtime, runningProcess->remainingTime, runningProcess->waitTime);
                 // Add the process to the log array
                 addLog(&logArray, &logArraySize, Log);
-                
+
                 if (runningProcess->pid == -1)
                     perror("Fork Falied");
                 else if (runningProcess->pid == 0)
