@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("processes.txt", processes);
+    int num_processes = readInputFile("processes2.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;
@@ -196,12 +196,12 @@ void clearResources(int signum)
     // remove the message queue
     if (msgctl(msgq_id, IPC_RMID, NULL) == -1)
     {
-        perror("Error removing message queue");
+        perror("Error removing Generator-Scheduler Message Queue");
     }
 
     if (semctl(gen_sch_sem_id, 0, IPC_RMID, NULL) == -1)
     {
-        perror("Error removing message queue");
+        perror("Error removing Semaphore");
     }
     exit(signum);
 }

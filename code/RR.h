@@ -188,12 +188,11 @@ void RR_receiveProcesses(int msgq_id, struct msgbuff *message, Array *processes,
     }
 }
 
-void RR(int quantum)
+void RR(int quantum, int sch_child_msgq_id)
 {
     // Initialize message queue
     printf("RR: Starting Algorthim...\n\n");
     int msgq_id = prepareMessageQueue("keys/gen_sch_msg_key");
-    int sch_child_msgq_id = prepareMessageQueue("keys/sch_child_msgq_key");
     int gen_sch_sem_id = getSemaphore("keys/gen_sch_sem_key");
 
     // Initialise log array
