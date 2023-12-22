@@ -1,5 +1,6 @@
 // Define a constant for the maximum number of processes
 #define MAX_PROCESSES 100
+#define MAX_MEM_SIZE 1024  // Assuming a total memory size of 1024 units
 
 // A special message type to indicate that all processes have been sent
 #define TERMINATION_MSG_TYPE 999
@@ -9,6 +10,17 @@
 typedef short bool;
 
 // our stuff
+
+// Memory Blocks will be stored as a Doubly Linked List. This struct defines the structure of each block.
+// The Linked List will only store the nodes at the leaves of the tree; no further information is required to complete the algorithm.
+typedef struct Block {
+    int size; // The maximum capacity of the block in Bytes
+    int index; // The index of the block if the nearly complete binary tree was stored in an array, and indexed in the same way as a binary heap
+    int isFree; // Indicates whether the block is occupied or not
+    struct Block* next; // Pointer to the next block
+    struct Block* prev; // Pointer to the previous block
+} Block;
+
 union Semun
 {
     int val;               /* Value for SETVAL */
