@@ -7,6 +7,7 @@ void initializeMemory(int totalSize) {
     memory->size = totalSize; // At the beginning, there is only one block, and its size equals the total available memory space
     memory->index = 1;  // The first node is the root of the tree. Hence, it has the index 1, just like the root of a binary heap.
     memory->isFree = 1; // No processes have been allocated yet.
+    memory->memoryLocation = 0; // Process occupies the entirety of the available 1024 bytes; from byte 0 to 1023.
     memory->next = NULL;
     memory->prev = NULL;
 }
@@ -44,6 +45,7 @@ void splitBlock(Block* block, int size) {
         newBlock->size = halfSize;
         newBlock->index = (block->index << 1) + 1;  // Right child
         newBlock->isFree = 1;
+        newBlock->memoryLocation = block->memoryLocation + halfSize;
         newBlock->next = block->next;
         newBlock->prev = block;
         if (block->next) block->next->prev = newBlock;

@@ -27,90 +27,7 @@ void addLog(struct log **logArray, int *size, struct log Log)
     (*size)++;
 }
 
-void storeLPerfAndLogFiles(struct log *logArray, int logArraySize, int idleCounter)
-{
-    // Initialize average waiting time and average weighted turnaround time
-    float avgWaitingTime = 0;
-    float avgWeightedTurnaroundTime = 0;
-    // Initialize array of weighted turnaround times
-    float *weightedTurnAroundTimes = (float *)malloc(logArraySize * sizeof(float));
-
-    int countTurnAround = 0;
-    int countWaiting = 0;
-
-    int totalTime = 0;
-    // Print the log array
-    // Initialize the log file
-    FILE *logFile = fopen("scheduler.log", "w");
-    fprintf(logFile, "#At\ttime\tx\tprocess\ty\tstate\tarr\tw\ttotal\tz\tremain\ty\twait\tk\n");
-    for (int i = 0; i < logArraySize; i++)
-    {
-        // state = 0 for started, 1 for stopped, 2 for resumed, 3 for finished
-        if (logArray[i].state == 3) // process is finished. Need Turnaround time and weighted turnaround time
-        {
-            // Calculate average waiting time
-            countWaiting++;
-            avgWaitingTime += logArray[i].waitTime;
-
-            // Calculate turnaround time and weighted turnaround time to the nearest 2 decimal places
-            logArray[i].turnAroundTime = logArray[i].currTime - logArray[i].arrivalTime;
-            logArray[i].weightedTurnAroundTime = (float)logArray[i].turnAroundTime / logArray[i].runTime;
-
-            // Add the weighted turnaround time to the array
-            weightedTurnAroundTimes[countTurnAround] = logArray[i].weightedTurnAroundTime;
-            countTurnAround++;
-            avgWeightedTurnaroundTime += logArray[i].weightedTurnAroundTime;
-
-            // Print the log to the file
-            fprintf(logFile, "At\ttime\t%d\tprocess\t%d\t%s\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\tTA\t%d\tWTA\t%.2f\n",
-                    logArray[i].currTime, logArray[i].id, logArray[i].state == 0 ? "started" : logArray[i].state == 1 ? "stopped"
-                                                                                           : logArray[i].state == 2   ? "resumed"
-                                                                                                                      : "finished",
-                    logArray[i].arrivalTime, logArray[i].runTime, logArray[i].remainingTime, logArray[i].waitTime, logArray[i].turnAroundTime, logArray[i].weightedTurnAroundTime);
-        }
-        else
-        {
-            fprintf(logFile, "At\ttime\t%d\tprocess\t%d\t%s\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",
-                    logArray[i].currTime, logArray[i].id, logArray[i].state == 0 ? "started" : logArray[i].state == 1 ? "stopped"
-                                                                                           : logArray[i].state == 2   ? "resumed"
-                                                                                                                      : "finished",
-                    logArray[i].arrivalTime, logArray[i].runTime, logArray[i].remainingTime, logArray[i].waitTime);
-        }
-
-        // Getting the total time by the last finsihed process
-        if (i == logArraySize - 1)
-        {
-            totalTime = logArray[i].currTime - 1;
-        }
-    }
-    // Calculate the average waiting time and average weighted turnaround time
-    fclose(logFile);
-    avgWeightedTurnaroundTime /= countTurnAround;
-
-    if (countWaiting == 0) // special case when no process waits
-        avgWaitingTime = 0;
-    else
-        avgWaitingTime /= countWaiting;
-
-    // Compute the standard deviation
-    float standardDeviation = 0;
-    for (int i = 0; i < countTurnAround; i++)
-    {
-        standardDeviation += pow(weightedTurnAroundTimes[i] - avgWeightedTurnaroundTime, 2);
-    }
-
-    // Store the performance metrics
-    FILE *performanceFile = fopen("scheduler.perf", "w");
-    // Add CPU utilization to the file
-    fprintf(performanceFile, "CPU utilization = %.2f%%\n", (float)(totalTime - idleCounter) / totalTime * 100);
-    // Add average waiting time and average weighted turnaround time to the file
-    fprintf(performanceFile, "Average Waiting = %.2f\n", avgWaitingTime);
-    fprintf(performanceFile, "Average WTA = %.2f\n", avgWeightedTurnaroundTime);
-    fprintf(performanceFile, "Std WTA = %.2f\n", sqrt(standardDeviation / countTurnAround));
-    fclose(performanceFile);
-}
-
-void SRTN_checkForProcessCompletion(struct process **runningProcess, struct log **logArray, int *logArraySize)
+void SRTN_checkForProcessCompletion(struct process **runningProcess, struct log **logArray, int *logArraySize, Array* waitingList, PriorityQueue *priorityQueue, memoryLogArray* memoryLogs)
 {
     int status;
     // Check for process completion
@@ -123,7 +40,33 @@ void SRTN_checkForProcessCompletion(struct process **runningProcess, struct log 
             // Create a finished log
             struct log Log = createLog((*runningProcess)->id, getClk(), 3, (*runningProcess)->arrival, (*runningProcess)->runtime, 0, (*runningProcess)->waitTime);
             addLog(logArray, logArraySize, Log);
+            memoryLog* newMemoryLog = (memoryLog*)malloc(sizeof(memoryLog));
+            setMemoryLog(newMemoryLog, (*runningProcess)->id, getClk(), (*runningProcess)->memorySize, (*runningProcess)->assignedBlock->memoryLocation, (*runningProcess)->assignedBlock->memoryLocation + (*runningProcess)->assignedBlock->size - 1, 0);
+            addElement_memoryLogArray(memoryLogs, newMemoryLog);
+            //printf("At time %d freed %d bytes from process %d from %d to %d\n", getClk(), (*runningProcess)->memorySize, (*runningProcess)->id, (*runningProcess)->assignedBlock->memoryLocation, (*runningProcess)->assignedBlock->memoryLocation + (*runningProcess)->assignedBlock->size - 1);
+            
+            deallocate((*runningProcess)->assignedBlock);
+            free(*runningProcess);
             *runningProcess = NULL;
+
+            while (waitingList->size > 0) {
+                struct process* currProcess = waitingList->data[0];
+                Block* allocatedBlock = allocate(currProcess->memorySize);
+                if (allocatedBlock) {
+                    memoryLog* newMemoryLog = (memoryLog*)malloc(sizeof(memoryLog));
+                    setMemoryLog(newMemoryLog, currProcess->id, getClk(), currProcess->memorySize, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1, 1);
+                    addElement_memoryLogArray(memoryLogs, newMemoryLog);
+                    //printf("At time %d allocated %d bytes for process %d from %d to %d\n", getClk(), currProcess->memorySize, currProcess->id, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1);
+                    
+                    currProcess->assignedBlock = allocatedBlock;
+                    removeElement(waitingList, 0);
+                    //printf("Removed Element from waiting list\n");
+                    minHeapInsert(priorityQueue, currProcess);
+                } else {
+                    //printf("Could Not Remove Element from waiting list\n");
+                    break;
+                }
+            }
         }
     }
 }
@@ -151,7 +94,7 @@ bool SRTN_DetectAndHandlePreemption(PriorityQueue *priorityQueue, struct process
     return false;
 }
 
-void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
+void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag, Array* waitingList, memoryLogArray* memoryLogs)
 {
     if (message.mtype == TERMINATION_MSG_TYPE)
     {
@@ -168,17 +111,29 @@ void SRTN_receiveProcess(struct msgbuff message, PriorityQueue *priorityQueue, b
 
         // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
         // the priority queue will automatically handle the ordering of the values with respect to the running time.
-        minHeapInsert(priorityQueue, newProcess);
+        Block* allocatedBlock = allocate(newProcess->memorySize);
+        if (allocatedBlock) {
+            memoryLog* newMemoryLog = (memoryLog*)malloc(sizeof(memoryLog));
+            setMemoryLog(newMemoryLog, newProcess->id, getClk(), newProcess->memorySize, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1, 1);
+            addElement_memoryLogArray(memoryLogs, newMemoryLog);
+            //printf("At time %d allocated %d bytes for process %d from %d to %d\n", getClk(), newProcess->memorySize, newProcess->id, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1);
+            
+            newProcess->assignedBlock = allocatedBlock;
+            minHeapInsert(priorityQueue, newProcess);
+        } else {
+            addElement(waitingList, newProcess);
+            //printf("Added Element to Waiting List\n");
+        }
 
         // printf("Received Message %d at time %d\n", message.p.id, getClk());
     }
 }
 
-void SRTN_receiveProcesses(int msgq_id, struct msgbuff *message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag)
+void SRTN_receiveProcesses(int msgq_id, struct msgbuff *message, PriorityQueue *priorityQueue, bool *allProcessesSentFlag, Array* waitingList, memoryLogArray* memoryLogs)
 {
     while (msgrcv(msgq_id, message, sizeof(message->p), 0, IPC_NOWAIT) != -1)
     {
-        SRTN_receiveProcess(*message, priorityQueue, allProcessesSentFlag);
+        SRTN_receiveProcess(*message, priorityQueue, allProcessesSentFlag, waitingList, memoryLogs);
     }
 }
 
@@ -192,6 +147,8 @@ void SRTN(int sch_child_msgq_id)
     // Initialise log array
     int logArraySize = 0;
     struct log *logArray = createLogArray(logArraySize);
+    memoryLogArray* memoryLogs = (memoryLogArray*) malloc(sizeof(memoryLogArray));
+    initMemoryLogArray(memoryLogs, 1);
 
     // Initialize idle counter and total time
     int idleCounter = 0;
@@ -203,6 +160,10 @@ void SRTN(int sch_child_msgq_id)
     PriorityQueue *priorityQueue = (PriorityQueue *)malloc(sizeof(PriorityQueue));
     initializePriorityQueue(priorityQueue);
 
+    // Initialize Waiting List
+    Array *waitingList = (Array *)malloc(sizeof(Array));
+    initArray(waitingList, 1);
+
     bool allProcessesSentFlag = false;
     bool preemptionFlag = false;
     struct process *runningProcess = NULL;
@@ -210,19 +171,18 @@ void SRTN(int sch_child_msgq_id)
     int status;
     pid_t child_pid = -1; // Track the PID of the running child process
 
-    while (!isEmpty(priorityQueue) || !allProcessesSentFlag || runningProcess)
+    while (!isEmpty(priorityQueue) || !isArrEmpty(waitingList) || !allProcessesSentFlag || runningProcess)
     {
         // Receive a process from the message queue
         if (!allProcessesSentFlag)
         {
             down(gen_sch_sem_id);
-            // printf("Down Completed\n");
-            SRTN_receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag);
+            SRTN_checkForProcessCompletion(&runningProcess, &logArray, &logArraySize, waitingList, priorityQueue, memoryLogs);
+            SRTN_receiveProcesses(msgq_id, &message, priorityQueue, &allProcessesSentFlag, waitingList, memoryLogs);
+        } else {
+            // Check for process completion
+            SRTN_checkForProcessCompletion(&runningProcess, &logArray, &logArraySize, waitingList, priorityQueue, memoryLogs);
         }
-
-        // Check for process completion
-        // Time is always end time + 1
-        SRTN_checkForProcessCompletion(&runningProcess, &logArray, &logArraySize);
 
         // Check for any preemptions
         preemptionFlag = SRTN_DetectAndHandlePreemption(priorityQueue, &runningProcess, &logArray, &logArraySize);
@@ -286,5 +246,5 @@ void SRTN(int sch_child_msgq_id)
     printf("SRTN: Finished Algorthim...\n");
 
     // Store the log file
-    storeLPerfAndLogFiles(logArray, logArraySize, idleCounter);
+    storePerfAndLogFiles(logArray, logArraySize, idleCounter, memoryLogs);
 }

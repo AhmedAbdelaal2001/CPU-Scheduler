@@ -1,10 +1,3 @@
-typedef struct
-{
-    memoryLog** data; // Pointer to dynamically allocated array
-    int size;              // Current size of the array
-    int capacity;          // Maximum capacity of the array
-} memoryLogArray;
-
 // Function to initialize the array
 void initMemoryLogArray(memoryLogArray *arr, int initialCapacity)
 {

@@ -201,6 +201,13 @@ typedef struct
     int allocated;
 } memoryLog;
 
+typedef struct
+{
+    memoryLog** data; // Pointer to dynamically allocated array
+    int size;              // Current size of the array
+    int capacity;          // Maximum capacity of the array
+} memoryLogArray;
+
 void setMemoryLog(memoryLog *newMemoryLog, int id, int currTime, int processSize, int blockStartingAddress, int blockEndingAddress, int allocated)
 {
     newMemoryLog->id = id;
@@ -221,4 +228,95 @@ int prepareSharedMemory(char *filePath, int size)
         exit(-1);
     }
     return shm_id;
+}
+
+void storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCounter, memoryLogArray* memoryLogs)
+{
+    // Initialize average waiting time and average weighted turnaround time
+    float avgWaitingTime = 0;
+    float avgWeightedTurnaroundTime = 0;
+    // Initialize array of weighted turnaround times
+    float *weightedTurnAroundTimes = (float *)malloc(logArraySize * sizeof(float));
+
+    int countTurnAround = 0;
+    int countWaiting = 0;
+
+    int totalTime = 0;
+    // Print the log array
+    // Initialize the log file
+    FILE *logFile = fopen("scheduler.log", "w");
+    fprintf(logFile, "#At\ttime\tx\tprocess\ty\tstate\tarr\tw\ttotal\tz\tremain\ty\twait\tk\n");
+    for (int i = 0; i < logArraySize; i++)
+    {
+        // state = 0 for started, 1 for stopped, 2 for resumed, 3 for finished
+        if (logArray[i].state == 3) // process is finished. Need Turnaround time and weighted turnaround time
+        {
+            // Calculate average waiting time
+            countWaiting++;
+            avgWaitingTime += logArray[i].waitTime;
+
+            // Calculate turnaround time and weighted turnaround time to the nearest 2 decimal places
+            logArray[i].turnAroundTime = logArray[i].currTime - logArray[i].arrivalTime;
+            logArray[i].weightedTurnAroundTime = (float)logArray[i].turnAroundTime / logArray[i].runTime;
+
+            // Add the weighted turnaround time to the array
+            weightedTurnAroundTimes[countTurnAround] = logArray[i].weightedTurnAroundTime;
+            countTurnAround++;
+            avgWeightedTurnaroundTime += logArray[i].weightedTurnAroundTime;
+
+            // Print the log to the file
+            fprintf(logFile, "At\ttime\t%d\tprocess\t%d\t%s\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\tTA\t%d\tWTA\t%.2f\n",
+                    logArray[i].currTime, logArray[i].id, logArray[i].state == 0 ? "started" : logArray[i].state == 1 ? "stopped"
+                                                                                           : logArray[i].state == 2   ? "resumed"
+                                                                                                                      : "finished",
+                    logArray[i].arrivalTime, logArray[i].runTime, logArray[i].remainingTime, logArray[i].waitTime, logArray[i].turnAroundTime, logArray[i].weightedTurnAroundTime);
+        }
+        else
+        {
+            fprintf(logFile, "At\ttime\t%d\tprocess\t%d\t%s\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",
+                    logArray[i].currTime, logArray[i].id, logArray[i].state == 0 ? "started" : logArray[i].state == 1 ? "stopped"
+                                                                                           : logArray[i].state == 2   ? "resumed"
+                                                                                                                      : "finished",
+                    logArray[i].arrivalTime, logArray[i].runTime, logArray[i].remainingTime, logArray[i].waitTime);
+        }
+
+        // Getting the total time by the last finsihed process
+        if (i == logArraySize - 1)
+        {
+            totalTime = logArray[i].currTime - 1;
+        }
+    }
+    // Calculate the average waiting time and average weighted turnaround time
+    fclose(logFile);
+    avgWeightedTurnaroundTime /= countTurnAround;
+
+    if (countWaiting == 0) // special case when no process waits
+        avgWaitingTime = 0;
+    else
+        avgWaitingTime /= countWaiting;
+
+    // Compute the standard deviation
+    float standardDeviation = 0;
+    for (int i = 0; i < countTurnAround; i++)
+    {
+        standardDeviation += pow(weightedTurnAroundTimes[i] - avgWeightedTurnaroundTime, 2);
+    }
+
+    // Store the performance metrics
+    FILE *performanceFile = fopen("scheduler.perf", "w");
+    // Add CPU utilization to the file
+    fprintf(performanceFile, "CPU utilization = %.2f%%\n", (float)(totalTime - idleCounter) / totalTime * 100);
+    // Add average waiting time and average weighted turnaround time to the file
+    fprintf(performanceFile, "Average Waiting = %.2f\n", avgWaitingTime);
+    fprintf(performanceFile, "Average WTA = %.2f\n", avgWeightedTurnaroundTime);
+    fprintf(performanceFile, "Std WTA = %.2f\n", sqrt(standardDeviation / countTurnAround));
+    fclose(performanceFile);
+
+    FILE *memoryLogFile = fopen("memory.log", "w");
+    fprintf(logFile, "#At\ttime\tx\tallocated\ty\tbytes\tfor\tprocess\tz\tfrom\ti\tto\tj\n");
+    for (int i = 0; i < memoryLogs->size; i++) {
+        char* event = (memoryLogs->data[i]->allocated == 1) ? "allocated":"freed";
+        fprintf(memoryLogFile, "At time %d %s %d bytes from process %d from %d to %d\n", memoryLogs->data[i]->currTime, event, memoryLogs->data[i]->processSize, memoryLogs->data[i]->id, memoryLogs->data[i]->blockStartingAddress, memoryLogs->data[i]->blockEndingAddress);
+    }
+    fclose(memoryLogFile);
 }
