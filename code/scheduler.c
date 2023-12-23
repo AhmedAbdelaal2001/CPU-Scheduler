@@ -1,6 +1,8 @@
 #include "headers.h"
 #include "priority_queue.h"
 #include "Array.h"
+#include "memoryLogArray.h"
+#include "buddyMemoryAllocation.h"
 #include "highest_priority_first.h"
 #include "shortest_remaining_time_next.h"
 #include "RR.h"
@@ -14,6 +16,7 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, clearResources);
     initClk();
+    initializeMemory(MAX_MEM_SIZE);
 
     // TODO implement the scheduler :)
     // upon termination release the clock resources.
@@ -32,6 +35,7 @@ int main(int argc, char *argv[])
         printf("Invalid Input\n");
 
     destroyClk(true);
+    freeLinkedList(memory);
     exit(0);
 
     return 0;

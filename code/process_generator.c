@@ -25,10 +25,10 @@ int readInputFile(char *filename, struct process *processes)
             break; // Stop reading at the first empty line (assuming the file is formatted correctly
 
         // Read process parameters
-        int id, arrival, runtime, priority;
-        if (sscanf(line, "%d\t%d\t%d\t%d", &id, &arrival, &runtime, &priority) == 4)
+        int id, arrival, runtime, priority, memorySize;
+        if (sscanf(line, "%d\t%d\t%d\t%d\t%d", &id, &arrival, &runtime, &priority, &memorySize) == 5)
         {
-            struct process p = create_process(id, arrival, runtime, priority);
+            struct process p = create_process(id, arrival, runtime, priority, memorySize);
             processes[num_processes++] = p;
         }
     }
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the Input data from the file.
     struct process processes[MAX_PROCESSES];
-    int num_processes = readInputFile("./testcases/processes3.txt", processes);
+    int num_processes = readInputFile("./testcases/processes.txt", processes);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     int scheduling_algo = 0;

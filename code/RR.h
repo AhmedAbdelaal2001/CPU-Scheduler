@@ -165,7 +165,7 @@ void RR_receiveProcess(struct msgbuff message, Array *processes, bool *allProces
         struct process *newProcess = (struct process *)malloc(sizeof(struct process));
 
         // The process's priority, which is the last input to the function, is set as the runtime; since we are using SRTN.
-        setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority);
+        setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority, message.p.memorySize);
 
         // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
         // the priority queue will automatically handle the ordering of the values with respect to the running time.

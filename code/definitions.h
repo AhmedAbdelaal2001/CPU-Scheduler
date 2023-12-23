@@ -37,6 +37,8 @@ struct process
     int arrival;
     int runtime;
     int priority;
+    int memorySize;
+    Block* assignedBlock;
 
     int remainingTime;
     int pid;
@@ -58,13 +60,15 @@ typedef struct
 } PriorityQueue;
 
 // Process Constructor
-struct process create_process(int id, int arrival, int runtime, int priority)
+struct process create_process(int id, int arrival, int runtime, int priority, int memorySize)
 {
     struct process p;
     p.id = id;
     p.arrival = arrival;
     p.runtime = runtime;
     p.priority = priority;
+    p.memorySize = memorySize;
+    p.assignedBlock = NULL;
 
     p.remainingTime = runtime;
     p.pid = -1;
@@ -72,12 +76,15 @@ struct process create_process(int id, int arrival, int runtime, int priority)
     return p;
 }
 
-void setProcessInformation(struct process *newProcess, int id, int arrival, int runtime, int priority)
+void setProcessInformation(struct process *newProcess, int id, int arrival, int runtime, int priority, int memorySize)
 {
     newProcess->id = id;
     newProcess->arrival = arrival;
     newProcess->runtime = runtime;
     newProcess->priority = priority;
+    newProcess->memorySize = memorySize;
+    newProcess->assignedBlock = NULL;
+    
     newProcess->waitTime = 0;
     newProcess->remainingTime = runtime;
     newProcess->pid = -1;
@@ -183,6 +190,26 @@ struct log
     int turnAroundTime;           // finish time - arrival time
     float weightedTurnAroundTime; // turnAroundTime / runTime
 };
+
+typedef struct
+{
+    int id;
+    int currTime;
+    int processSize;
+    int blockStartingAddress;
+    int blockEndingAddress;
+    int allocated;
+} memoryLog;
+
+void setMemoryLog(memoryLog *newMemoryLog, int id, int currTime, int processSize, int blockStartingAddress, int blockEndingAddress, int allocated)
+{
+    newMemoryLog->id = id;
+    newMemoryLog->currTime = currTime;
+    newMemoryLog->processSize = processSize;
+    newMemoryLog->blockStartingAddress = blockStartingAddress;
+    newMemoryLog->blockEndingAddress = blockEndingAddress;
+    newMemoryLog->allocated = allocated;
+}
 
 int prepareSharedMemory(char *filePath, int size)
 {

@@ -1,5 +1,3 @@
-#include "headers.h"
-
 Block* memory = NULL; // The head of the Linked List
 
 // Function to initialize memory
