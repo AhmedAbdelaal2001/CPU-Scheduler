@@ -108,7 +108,7 @@ void RR_storePerfAndLogFiles(struct log *logArray, int logArraySize, int idleCou
     fclose(performanceFile);
 }
 
-void RR_checkForProcessCompletion(Array *processes, struct process **runningProcess, int *processToRun, int *quantumRemainingTime, int quantum, struct log **logArray, int *logArraySize)
+void RR_checkForProcessCompletion(Array *processes, struct process **runningProcess, int *processToRun, int *quantumRemainingTime, int quantum, struct log **logArray, int *logArraySize, Array* waitingList, memoryLogArray* memoryLogs)
 {
     int status;
     // Check for process completion
@@ -119,15 +119,43 @@ void RR_checkForProcessCompletion(Array *processes, struct process **runningProc
             // Create a finished log for the finished process
             struct log Log = RR_createLog((*runningProcess)->id, getClk(), 3, (*runningProcess)->arrival, (*runningProcess)->runtime, 0, (*runningProcess)->waitTime);
             RR_addLog(logArray, logArraySize, Log);
-
-            // Child process finished
+            memoryLog* newMemoryLog = (memoryLog*)malloc(sizeof(memoryLog));
+            setMemoryLog(newMemoryLog, (*runningProcess)->id, getClk(), (*runningProcess)->memorySize, (*runningProcess)->assignedBlock->memoryLocation, (*runningProcess)->assignedBlock->memoryLocation + (*runningProcess)->assignedBlock->size - 1, 0);
+            addElement_memoryLogArray(memoryLogs, newMemoryLog);
+            //printf("At time %d freed %d bytes from process %d from %d to %d\n", getClk(), (*runningProcess)->memorySize, (*runningProcess)->id, (*runningProcess)->assignedBlock->memoryLocation, (*runningProcess)->assignedBlock->memoryLocation + (*runningProcess)->assignedBlock->size - 1);
+            
+            deallocate((*runningProcess)->assignedBlock);
+            free(*runningProcess);
             *runningProcess = NULL;
+
             removeElement(processes, *processToRun);
+
+            while (waitingList->size > 0) {
+                struct process* currProcess = waitingList->data[0];
+                Block* allocatedBlock = allocate(currProcess->memorySize);
+                if (allocatedBlock) {
+                    memoryLog* newMemoryLog = (memoryLog*)malloc(sizeof(memoryLog));
+                    setMemoryLog(newMemoryLog, currProcess->id, getClk(), currProcess->memorySize, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1, 1);
+                    addElement_memoryLogArray(memoryLogs, newMemoryLog);
+                    //printf("At time %d allocated %d bytes for process %d from %d to %d\n", getClk(), currProcess->memorySize, currProcess->id, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1);
+                    
+                    currProcess->assignedBlock = allocatedBlock;
+                    removeElement(waitingList, 0);
+                    //printf("Removed Element from waiting list\n");
+                    addElement(processes, currProcess);
+                } else {
+                    //printf("Could Not Remove Element from waiting list\n");
+                    break;
+                }
+            }
+
             if (!isArrEmpty(processes))
             {
                 *processToRun = (*processToRun) % processes->size;
                 *quantumRemainingTime = quantum;
             }
+
+
 
             // printf("Process finished\n");
         }
@@ -153,7 +181,7 @@ void RR_DetectAndHandlePreemption(Array *processes, struct process **runningProc
     }
 }
 
-void RR_receiveProcess(struct msgbuff message, Array *processes, bool *allProcessesSentFlag)
+void RR_receiveProcess(struct msgbuff message, Array *processes, bool *allProcessesSentFlag, Array* waitingList, memoryLogArray* memoryLogs)
 {
     if (message.mtype == TERMINATION_MSG_TYPE)
     {
@@ -167,17 +195,27 @@ void RR_receiveProcess(struct msgbuff message, Array *processes, bool *allProces
         // The process's priority, which is the last input to the function, is set as the runtime; since we are using SRTN.
         setProcessInformation(newProcess, message.p.id, message.p.arrival, message.p.runtime, message.p.priority, message.p.memorySize);
 
-        // Insert the process into the priority queue. Since the priority of the process is set to its runtime,
-        // the priority queue will automatically handle the ordering of the values with respect to the running time.
-        addElement(processes, newProcess);
+        Block* allocatedBlock = allocate(newProcess->memorySize);
+        if (allocatedBlock) {
+            memoryLog* newMemoryLog = (memoryLog*)malloc(sizeof(memoryLog));
+            setMemoryLog(newMemoryLog, newProcess->id, getClk(), newProcess->memorySize, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1, 1);
+            addElement_memoryLogArray(memoryLogs, newMemoryLog);
+            //printf("At time %d allocated %d bytes for process %d from %d to %d\n", getClk(), newProcess->memorySize, newProcess->id, allocatedBlock->memoryLocation, allocatedBlock->memoryLocation + allocatedBlock->size - 1);
+            
+            newProcess->assignedBlock = allocatedBlock;
+            addElement(processes, newProcess);
+        } else {
+            addElement(waitingList, newProcess);
+            //printf("Added Element to Waiting List\n");
+        }
     }
 }
 
-void RR_receiveProcesses(int msgq_id, struct msgbuff *message, Array *processes, bool *allProcessesSentFlag)
+void RR_receiveProcesses(int msgq_id, struct msgbuff *message, Array *processes, bool *allProcessesSentFlag, Array* waitingList, memoryLogArray* memoryLogs)
 {
     while (msgrcv(msgq_id, message, sizeof(message->p), 0, IPC_NOWAIT) != -1)
     {
-        RR_receiveProcess(*message, processes, allProcessesSentFlag);
+        RR_receiveProcess(*message, processes, allProcessesSentFlag, waitingList, memoryLogs);
     }
 }
 
@@ -191,6 +229,8 @@ void RR(int quantum, int sch_child_msgq_id)
     // Initialise log array
     int logArraySize = 0;
     struct log *logArray = RR_createLogArray(logArraySize);
+    memoryLogArray* memoryLogs = (memoryLogArray*) malloc(sizeof(memoryLogArray));
+    initMemoryLogArray(memoryLogs, 1);
 
     // Initialize idle counter and total time
     int idleCounter = 0;
@@ -202,6 +242,10 @@ void RR(int quantum, int sch_child_msgq_id)
     Array *processes = (Array *)malloc(sizeof(Array));
     initArray(processes, 1);
 
+    // Initialize Waiting List
+    Array *waitingList = (Array *)malloc(sizeof(Array));
+    initArray(waitingList, 1);
+
     bool allProcessesSentFlag = false;
     bool preemptionFlag = false;
     struct process *runningProcess = NULL;
@@ -211,17 +255,18 @@ void RR(int quantum, int sch_child_msgq_id)
     int status;
     pid_t child_pid = -1; // Track the PID of the running child process
 
-    while (!isArrEmpty(processes) || !allProcessesSentFlag || runningProcess)
+    while (!isArrEmpty(processes) || !isArrEmpty(waitingList) || !allProcessesSentFlag || runningProcess)
     {
         // Receive a process from the message queue
         if (!allProcessesSentFlag)
         {
             down(gen_sch_sem_id);
-            RR_receiveProcesses(msgq_id, &message, processes, &allProcessesSentFlag);
+            RR_checkForProcessCompletion(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum, &logArray, &logArraySize, waitingList, memoryLogs);
+            RR_receiveProcesses(msgq_id, &message, processes, &allProcessesSentFlag, waitingList, memoryLogs);
+        } else {
+            // Check for process completion
+            RR_checkForProcessCompletion(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum, &logArray, &logArraySize, waitingList, memoryLogs);
         }
-
-        // Check for process completion
-        RR_checkForProcessCompletion(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum, &logArray, &logArraySize);
 
         // Check for any preemptions
         RR_DetectAndHandlePreemption(processes, &runningProcess, &processToRun, &quantumRemainingTime, quantum, &logArray, &logArraySize);
@@ -285,5 +330,5 @@ void RR(int quantum, int sch_child_msgq_id)
     msgctl(sch_child_msgq_id, IPC_RMID, NULL);
     // Free priority queue since it was dynamically allocated
     freeArray(processes);
-    RR_storePerfAndLogFiles(logArray, logArraySize, idleCounter);
+    storePerfAndLogFiles(logArray, logArraySize, idleCounter, memoryLogs);
 }
